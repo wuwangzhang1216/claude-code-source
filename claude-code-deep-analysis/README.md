@@ -1,11 +1,13 @@
 # Claude Code 源码深度分析系列
 
-> 基于 [Claude Code Agent Flow 逆向分析](../claude-code-agent-flow-analysis.md) 一文，对其中每个章节进行深度拆解。每篇文章都包含源码级的代码分析、设计模式剖析、以及与业界其他方案的横向对比。
+> 基于 [Claude Code Agent Flow 逆向分析](../claude-code-agent-flow-analysis.md) 一文，对 Claude Code 的完整架构进行深度拆解。每篇文章都包含源码级的代码分析、设计模式剖析、以及与业界其他方案的横向对比。
 
 ## 目录
 
-| # | 主题 | 文件 | 关键词 |
-|---|------|------|--------|
+### Part 1：核心 Agent 引擎（00-11）
+
+| # | 主题 | 关键文件 | 关键词 |
+|---|------|---------|--------|
 | 00 | [核心结论深度分析](00-core-conclusion.md) | `query.ts` | while(true) vs DAG, async generator, ReAct |
 | 01 | [入口流程深度分析](01-entry-point.md) | `QueryEngine.ts`, `main.tsx` | 启动优化, 断点续传, 成本追踪 |
 | 02 | [主循环深度分析](02-main-loop.md) | `query.ts` | State, 7个continue site, 类型安全 |
@@ -19,11 +21,24 @@
 | 10 | [全局架构图深度分析](10-architecture-diagram.md) | 全局 | 调用图, 数据流, 并发模型 |
 | 11 | [设计哲学深度分析](11-design-philosophy.md) | 全局 | 循环vs图, 递归vs编排, 模型决策 |
 
+### Part 2：外围子系统（12-17）
+
+| # | 主题 | 关键文件 | 关键词 |
+|---|------|---------|--------|
+| 12 | [MCP 集成深度分析](12-mcp-integration.md) | `services/mcp/client.ts` | Transport, OAuth, 工具注册, 权限 |
+| 13 | [Memory 系统深度分析](13-memory-system.md) | `memdir/` | 跨会话记忆, 异步预取, 团队记忆 |
+| 14 | [System Prompt 构建深度分析](14-system-prompt.md) | `constants/prompts.ts` | 模块化组装, 缓存边界, 多源合并 |
+| 15 | [Session Resume 与 Bridge 深度分析](15-session-resume.md) | `bridge/`, `utils/sessionRestore.ts` | WAL持久化, IDE集成, 崩溃恢复 |
+| 16 | [工具实现深度分析](16-tool-implementations.md) | `tools/`, `Tool.ts` | 45+工具, 统一接口, 安全默认 |
+| 17 | [Hook 系统深度分析](17-hook-system.md) | `utils/hooks/` | 生命周期回调, 阻断机制, 企业管控 |
+
 ## 阅读建议
 
 - **快速了解**: 先读 00（核心结论）和 11（设计哲学），把握整体脉络
-- **深入理解**: 按顺序从 01 读到 09，跟着代码走一遍完整流程
+- **深入理解**: 按顺序从 01 读到 09，跟着代码走一遍核心引擎
 - **架构视角**: 10（架构图）适合需要全局视野的读者
+- **扩展系统**: 12-17 覆盖 MCP、Memory、Prompt、Session、Tools、Hooks 六大外围系统
+- **构建 Agent**: 如果你在构建自己的 agent 系统，重点读 00、02、04、07、11
 
 ## 关键源文件索引
 
@@ -38,3 +53,9 @@
 | `runAgent.ts` | 973 | 子Agent 递归调用 |
 | `utils/messages.ts` | 5512 | 消息工厂与转换 |
 | `services/compact/` | ~11文件 | 四层上下文压缩 |
+| `services/mcp/client.ts` | 3348 | MCP 连接与工具调用 |
+| `memdir/` | 8文件 | 记忆存储与检索 |
+| `constants/prompts.ts` | 914 | System Prompt 组装 |
+| `bridge/replBridge.ts` | ~2800 | Bridge 通信层 |
+| `Tool.ts` | 793 | 工具接口定义 |
+| `utils/hooks/` | ~17文件 | Hook 生命周期系统 |
