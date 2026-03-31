@@ -2,21 +2,43 @@
 
 ## Disclaimer / 免责声明
 
-**This repository is for educational and reference purposes only.**
+> **IMPORTANT: READ BEFORE USE**
 
-The source code in this repository was discovered and sourced from [instructkr/claw-code](https://github.com/instructkr/claw-code), which contains decompiled/extracted source code of [Claude Code](https://claude.ai/code) by Anthropic.
+### English
 
-This repository is provided solely as learning material for understanding how Claude Code works internally. It is **not** intended for commercial use, redistribution, or any purpose that would violate Anthropic's terms of service.
+**This repository is strictly for educational and research purposes only.**
+
+- **Source**: The source code referenced in this repository was discovered from publicly available sources, including [instructkr/claw-code](https://github.com/instructkr/claw-code). It contains extracted source code of [Claude Code](https://claude.ai/code), a product by [Anthropic](https://anthropic.com).
+- **Ownership**: All intellectual property rights of the source code belong exclusively to **Anthropic, PBC**. This repository does not claim any ownership, authorship, or rights over the original code.
+- **Purpose**: This repository is provided **solely** as learning material for understanding AI agent system architecture and engineering patterns. It is intended for academic study, technical research, and educational discussion.
+- **Prohibited uses**: This repository and its contents **must not** be used for:
+  - Commercial purposes of any kind
+  - Building competing products or services
+  - Redistribution or repackaging of the source code
+  - Any purpose that violates Anthropic's [Terms of Service](https://www.anthropic.com/terms) or applicable laws
+- **Analysis articles**: The deep analysis articles (`claude-code-deep-analysis/`) are **original commentary and analysis** written by the repository maintainers. They contain code snippets for the purpose of commentary, criticism, and education, which is generally considered fair use. However, these articles should not be considered legal advice.
+- **DMCA / Takedown**: If you are a representative of Anthropic or believe this repository infringes on any intellectual property rights, please contact us and we will **promptly remove** the infringing content. You may also file a DMCA takedown notice through [GitHub's DMCA process](https://docs.github.com/en/site-policy/content-removal-policies/dmca-takedown-policy).
+- **No warranty**: This repository is provided "as is" without warranty of any kind. The maintainers are not responsible for any consequences arising from the use of this material.
 
 ---
 
-**本仓库仅供学习和参考使用。**
+### 中文
 
-本仓库中的源代码来源于 [instructkr/claw-code](https://github.com/instructkr/claw-code)，其中包含了 Anthropic 的 [Claude Code](https://claude.ai/code) 产品的源代码。
+**本仓库严格仅供学习和研究用途。**
 
-本仓库仅作为学习材料提供，用于了解 Claude Code 的内部工作原理。**不得**用于商业用途、再分发或任何可能违反 Anthropic 服务条款的行为。
+- **来源**：本仓库引用的源代码来自公开渠道，包括 [instructkr/claw-code](https://github.com/instructkr/claw-code)，其中包含 [Anthropic](https://anthropic.com) 公司的 [Claude Code](https://claude.ai/code) 产品的源代码。
+- **知识产权**：源代码的所有知识产权完全归 **Anthropic, PBC** 所有。本仓库不主张对原始代码的任何所有权、著作权或权利。
+- **用途**：本仓库**仅**作为学习材料提供，用于理解 AI agent 系统架构和工程设计模式，面向学术研究、技术学习和教育讨论。
+- **禁止用途**：本仓库及其内容**不得**用于：
+  - 任何形式的商业用途
+  - 构建竞品产品或服务
+  - 再分发或重新打包源代码
+  - 任何违反 Anthropic [服务条款](https://www.anthropic.com/terms) 或适用法律的行为
+- **分析文章**：深度分析文章（`claude-code-deep-analysis/`）是仓库维护者撰写的**原创评论和分析**。文章中包含的代码片段用于评论、批评和教育目的。但这些文章不构成法律建议。
+- **侵权处理**：如您是 Anthropic 的代表或认为本仓库侵犯了任何知识产权，请联系我们，我们将**立即删除**相关内容。您也可以通过 [GitHub 的 DMCA 流程](https://docs.github.com/en/site-policy/content-removal-policies/dmca-takedown-policy) 提交侵权通知。
+- **免责条款**：本仓库按"现状"提供，不附带任何形式的保证。维护者不对因使用本材料而产生的任何后果承担责任。
 
-如有侵权，请联系删除。
+**Contact / 联系方式**: 如有任何问题，请通过 GitHub Issues 联系。
 
 ## 深度分析系列 / Deep Analysis
 
@@ -84,6 +106,9 @@ This repository contains the TypeScript source code of Claude Code CLI, includin
 - `plugins/` - Plugin architecture
 - `voice/` - Voice input support
 
-## License
+## License / 版权声明
 
-All rights belong to Anthropic. This repository does not claim any ownership of the code.
+- **Source code**: All rights belong to **Anthropic, PBC**. This repository does not claim any ownership of the original code. No license is granted for the source code.
+- **Analysis articles** (`claude-code-deep-analysis/`): Original analysis and commentary by the repository maintainers. Code snippets included within articles are for educational commentary purposes only.
+- **源代码**：所有权利归 **Anthropic, PBC** 所有。本仓库不主张对原始代码的任何所有权。不授予源代码的任何许可。
+- **分析文章**（`claude-code-deep-analysis/`）：仓库维护者的原创分析和评论。文章中包含的代码片段仅用于教育评论目的。
