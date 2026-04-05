@@ -89,9 +89,16 @@ export function writeTextContent(
 ): void {
   let toWrite = content
   if (endings === 'CRLF') {
-    // Normalize any existing CRLF to LF first so a new_string that already
-    // contains \r\n (raw model output) doesn't become \r\r\n after the join.
-    toWrite = content.replaceAll('\r\n', '\n').split('\n').join('\r\n')
+    // Normalize any existing CRLF/CR to bare LF first, then join with CRLF.
+    // Belt-and-suspenders: strip bare \r sequences too so that inputs like
+    // `\r\r\n` (which could slip through when model output already contains
+    // \r\n and upstream normalization misses it) can't compound into
+    // `\r\r\n` on write. (2.1.89: fixes Windows CRLF doubling.)
+    toWrite = content
+      .replaceAll('\r\n', '\n')
+      .replaceAll('\r', '')
+      .split('\n')
+      .join('\r\n')
   }
 
   writeFileSyncAndFlush_DEPRECATED(filePath, toWrite, { encoding })

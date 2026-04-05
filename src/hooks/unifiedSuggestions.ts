@@ -185,9 +185,14 @@ export async function generateUnifiedSuggestions(
 
     const fuseResults = fuse.search(query, { limit: MAX_UNIFIED_SUGGESTIONS })
     for (const result of fuseResults) {
+      // 2.1.89: rank source files above MCP resources with similar names.
+      // Apply a small positive penalty to MCP resources so that when scores
+      // are close, the file wins the tiebreak. Agents keep their raw score.
+      const rawScore = result.score ?? 0.5
+      const mcpPenalty = result.item.type === 'mcp_resource' ? 0.05 : 0
       scoredResults.push({
         source: result.item,
-        score: result.score ?? 0.5,
+        score: rawScore + mcpPenalty,
       })
     }
   }

@@ -857,6 +857,11 @@ export default class Ink {
    * behavior in SIGCONT/resize/unmount handlers. Repaints on change so
    * the first alt-screen frame (and first main-screen frame on exit) is
    * a full redraw with no stale diff state.
+   *
+   * TODO(2.1.89, CLAUDE_CODE_NO_FLICKER): when `isNoFlickerMode()` returns
+   * true, switch to a virtualized-scrollback alt-screen path that avoids
+   * the main-screen ↔ alt-screen flips that cause flicker on some terms.
+   * Read helper: src/utils/envUtils.ts::isNoFlickerMode().
    */
   setAltScreenActive(active: boolean, mouseTracking = false): void {
     if (this.altScreenActive === active) return;

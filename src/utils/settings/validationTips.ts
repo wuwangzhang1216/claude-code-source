@@ -46,11 +46,10 @@ const TIP_MATCHERS: TipMatcher[] = [
   {
     matches: (ctx): boolean =>
       ctx.path === 'cleanupPeriodDays' &&
-      ctx.code === 'too_small' &&
-      ctx.expected === '0',
+      ctx.code === 'too_small',
     tip: {
       suggestion:
-        'Must be 0 or greater. Set a positive number for days to retain transcripts (default is 30). Setting 0 disables session persistence entirely: no transcripts are written and existing transcripts are deleted at startup.',
+        'Must be a positive integer. Set a positive number for days to retain transcripts (default is 30). As of 2.1.89, 0 is no longer accepted — use a large number to effectively disable cleanup.',
     },
   },
   {

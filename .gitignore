@@ -4,3 +4,4 @@ bun.lock
 src/utils/vendor/ripgrep/
 *.log
 node_modules
+.claude/

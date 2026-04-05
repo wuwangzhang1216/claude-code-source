@@ -113,6 +113,27 @@ export function shouldMaintainProjectWorkingDir(): boolean {
 }
 
 /**
+ * Flicker-free alt-screen rendering with virtualized scrollback (2.1.89).
+ * When CLAUDE_CODE_NO_FLICKER=1 is set, the renderer should switch to a
+ * virtualized-scrollback alt-screen path. The full virtualized-scrollback
+ * implementation lives in the Ink renderer; this helper centralizes the
+ * env-var read so it's discoverable from a single place.
+ */
+export function isNoFlickerMode(): boolean {
+  return isEnvTruthy(process.env.CLAUDE_CODE_NO_FLICKER)
+}
+
+/**
+ * Non-blocking MCP connections in headless (`-p`) mode (2.1.89).
+ * When MCP_CONNECTION_NONBLOCKING=true and running under -p, MCP server
+ * connections are not awaited at startup — the CLI proceeds immediately and
+ * connections finish in the background.
+ */
+export function isMCPConnectionNonblocking(): boolean {
+  return isEnvTruthy(process.env.MCP_CONNECTION_NONBLOCKING)
+}
+
+/**
  * Check if running on Homespace (ant-internal cloud environment)
  */
 export function isRunningOnHomespace(): boolean {

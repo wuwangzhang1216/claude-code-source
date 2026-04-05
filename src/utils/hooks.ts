@@ -3,7 +3,7 @@
  * Hooks are user-defined shell commands that can be executed at various points
  * in Claude Code's lifecycle.
  */
-import { basename } from 'path'
+import { basename, isAbsolute as isAbsolutePath, resolve as resolvePath } from 'path'
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process'
 import { pathExists } from './file.js'
 import { wrapSpawn } from './ShellCommand.js'
@@ -343,6 +343,12 @@ export interface HookResult {
   preventContinuation?: boolean
   stopReason?: string
   permissionBehavior?: 'ask' | 'deny' | 'allow' | 'passthrough'
+  /**
+   * Set to true when a PreToolUse hook returned permissionDecision: 'defer'.
+   * The tool-execution runtime uses this in headless `-p` sessions to pause
+   * and persist a deferred marker; in interactive mode it is informational.
+   */
+  hookDeferred?: boolean
   hookPermissionDecisionReason?: string
   additionalContext?: string
   initialUserMessage?: string
@@ -421,11 +427,11 @@ function parseHookOutput(stdout: string): {
         decision: '"approve" | "block" (optional)',
         reason: 'string (optional)',
         systemMessage: 'string (optional)',
-        permissionDecision: '"allow" | "deny" | "ask" (optional)',
+        permissionDecision: '"allow" | "deny" | "ask" | "defer" (optional)',
         hookSpecificOutput: {
           'for PreToolUse': {
             hookEventName: '"PreToolUse"',
-            permissionDecision: '"allow" | "deny" | "ask" (optional)',
+            permissionDecision: '"allow" | "deny" | "ask" | "defer" (optional)',
             permissionDecisionReason: 'string (optional)',
             updatedInput: 'object (optional) - Modified tool input to use',
           },
@@ -566,10 +572,18 @@ function processHookJSONOutput({
       case 'ask':
         result.permissionBehavior = 'ask'
         break
+      case 'defer':
+        // Defer: pause the tool call. In interactive sessions this falls back
+        // to 'ask'. In headless (`-p`) sessions, the tool runtime persists a
+        // deferred marker so `-p --resume` can re-run the hook. We surface
+        // the intent via hookDeferred; the runtime decides how to act on it.
+        result.permissionBehavior = 'ask'
+        result.hookDeferred = true
+        break
       default:
         // Handle unknown decision types as errors
         throw new Error(
-          `Unknown hook permissionDecision type: ${json.hookSpecificOutput.permissionDecision}. Valid types are: allow, deny, ask`,
+          `Unknown hook permissionDecision type: ${json.hookSpecificOutput.permissionDecision}. Valid types are: allow, deny, ask, defer`,
         )
     }
   }
@@ -609,6 +623,11 @@ function processHookJSONOutput({
               break
             case 'ask':
               result.permissionBehavior = 'ask'
+              break
+            case 'defer':
+              // See comment above: defer → ask + hookDeferred marker.
+              result.permissionBehavior = 'ask'
+              result.hookDeferred = true
               break
           }
         }
@@ -3381,6 +3400,38 @@ async function executeHooksOutsideREPL({
 }
 
 /**
+ * Resolve a `file_path` on a Write/Edit/Read tool input to an absolute path
+ * before passing to hooks (2.1.89). PreToolUse/PostToolUse hooks expect the
+ * absolute path — it matches the documented behavior and lets hook scripts
+ * avoid re-resolving relative paths against the CLI's working directory.
+ * Returns the input unchanged for any tool that doesn't use `file_path`.
+ */
+function resolveFilePathForHook<ToolInput>(
+  toolName: string,
+  toolInput: ToolInput,
+): ToolInput {
+  // Only Write/Edit/Read (and MultiEdit) use a `file_path` string field.
+  if (
+    toolName !== 'Write' &&
+    toolName !== 'Edit' &&
+    toolName !== 'MultiEdit' &&
+    toolName !== 'Read' &&
+    toolName !== 'NotebookEdit'
+  ) {
+    return toolInput
+  }
+  const input = toolInput as unknown as { file_path?: unknown }
+  const filePath = input?.file_path
+  if (typeof filePath !== 'string' || isAbsolutePath(filePath)) {
+    return toolInput
+  }
+  return {
+    ...(toolInput as unknown as object),
+    file_path: resolvePath(getCwd(), filePath),
+  } as ToolInput
+}
+
+/**
  * Execute pre-tool hooks if configured
  * @param toolName The name of the tool (e.g., 'Write', 'Edit', 'Bash')
  * @param toolUseID The ID of the tool use
@@ -3419,7 +3470,7 @@ export async function* executePreToolHooks<ToolInput>(
     ...createBaseHookInput(permissionMode, undefined, toolUseContext),
     hook_event_name: 'PreToolUse',
     tool_name: toolName,
-    tool_input: toolInput,
+    tool_input: resolveFilePathForHook(toolName, toolInput),
     tool_use_id: toolUseID,
   }
 
@@ -3461,7 +3512,7 @@ export async function* executePostToolHooks<ToolInput, ToolResponse>(
     ...createBaseHookInput(permissionMode, undefined, toolUseContext),
     hook_event_name: 'PostToolUse',
     tool_name: toolName,
-    tool_input: toolInput,
+    tool_input: resolveFilePathForHook(toolName, toolInput),
     tool_response: toolResponse,
     tool_use_id: toolUseID,
   }
@@ -3510,7 +3561,7 @@ export async function* executePostToolUseFailureHooks<ToolInput>(
     ...createBaseHookInput(permissionMode, undefined, toolUseContext),
     hook_event_name: 'PostToolUseFailure',
     tool_name: toolName,
-    tool_input: toolInput,
+    tool_input: resolveFilePathForHook(toolName, toolInput),
     tool_use_id: toolUseID,
     error,
     is_interrupt: isInterrupt,
@@ -3546,7 +3597,7 @@ export async function* executePermissionDeniedHooks<ToolInput>(
     ...createBaseHookInput(permissionMode, undefined, toolUseContext),
     hook_event_name: 'PermissionDenied',
     tool_name: toolName,
-    tool_input: toolInput,
+    tool_input: resolveFilePathForHook(toolName, toolInput),
     tool_use_id: toolUseID,
     reason,
   }
@@ -4175,7 +4226,7 @@ export async function* executePermissionRequestHooks<ToolInput>(
     ...createBaseHookInput(permissionMode, undefined, toolUseContext),
     hook_event_name: 'PermissionRequest',
     tool_name: toolName,
-    tool_input: toolInput,
+    tool_input: resolveFilePathForHook(toolName, toolInput),
     permission_suggestions: permissionSuggestions,
   }
 

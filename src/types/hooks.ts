@@ -71,7 +71,13 @@ export const syncHookResponseSchema = lazySchema(() =>
       .union([
         z.object({
           hookEventName: z.literal('PreToolUse'),
-          permissionDecision: permissionBehaviorSchema().optional(),
+          // PreToolUse hooks may return 'defer' in addition to the standard
+          // allow/deny/ask behaviors. In headless `-p` sessions, defer pauses
+          // the tool call and persists a marker so `-p --resume` re-evaluates
+          // the hook. In interactive mode, defer falls back to 'ask'.
+          permissionDecision: z
+            .union([permissionBehaviorSchema(), z.literal('defer')])
+            .optional(),
           permissionDecisionReason: z.string().optional(),
           updatedInput: z.record(z.string(), z.unknown()).optional(),
           additionalContext: z.string().optional(),

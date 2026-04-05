@@ -1179,7 +1179,10 @@ function PromptInput({
     // rather than being lost.
     const prefix = pendingSpaceAfterPillRef.current ? ' ' : '';
     insertTextAtCursor(prefix + formatImageRef(pasteId));
-    pendingSpaceAfterPillRef.current = true;
+    // 2.1.89: image paste no longer inserts a trailing space. Multi-image
+    // paste is still separated by the lazy-space prefix above (the ref is
+    // re-armed only when a subsequent image is actually pasted below).
+    pendingSpaceAfterPillRef.current = false;
   }
 
   // Prune images whose [Image #N] placeholder is no longer in the input text.

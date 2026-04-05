@@ -453,8 +453,25 @@ const IMAGE_MIME_TYPES = new Set([
   'image/webp',
 ])
 
+/**
+ * Bootstrap-phase cap on per-server MCP connection waits (2.1.89).
+ * When `--mcp-config` is loaded at startup, we don't want slow servers to
+ * block the CLI from coming up. During that window callers set the
+ * bootstrap flag and connections are capped at 5s regardless of MCP_TIMEOUT.
+ */
+const MCP_BOOTSTRAP_CONNECTION_TIMEOUT_MS = 5000
+let mcpBootstrapActive = false
+
+export function setMcpBootstrapMode(active: boolean): void {
+  mcpBootstrapActive = active
+}
+
 function getConnectionTimeoutMs(): number {
-  return parseInt(process.env.MCP_TIMEOUT || '', 10) || 30000
+  const configured = parseInt(process.env.MCP_TIMEOUT || '', 10) || 30000
+  if (mcpBootstrapActive) {
+    return Math.min(configured, MCP_BOOTSTRAP_CONNECTION_TIMEOUT_MS)
+  }
+  return configured
 }
 
 /**
@@ -2427,6 +2444,12 @@ export function prefetchAllMcpResources(
       return
     }
 
+    // 2.1.89: while we're bootstrapping the --mcp-config servers, cap the
+    // per-server connection wait at 5s so a single slow/unreachable server
+    // can't block CLI startup.
+    setMcpBootstrapMode(true)
+    const clearBootstrap = () => setMcpBootstrapMode(false)
+
     const clients: MCPServerConnection[] = []
     const tools: Tool[] = []
     const commands: Command[] = []
@@ -2451,6 +2474,7 @@ export function prefetchAllMcpResources(
           commands_metadata_length: commandsMetadataLength,
         })
 
+        clearBootstrap()
         void resolve({
           clients,
           tools,
@@ -2458,6 +2482,7 @@ export function prefetchAllMcpResources(
         })
       }
     }, mcpConfigs).catch(error => {
+      clearBootstrap()
       logMCPError(
         'prefetchAllMcpResources',
         `Failed to get MCP resources: ${errorMessage(error)}`,

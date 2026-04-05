@@ -236,7 +236,24 @@ export type PermissionDenyDecision = {
 }
 
 /**
- * A permission decision - allow, ask, or deny
+ * Result when a PreToolUse hook chooses to defer the decision. In headless
+ * sessions (`-p`) this pauses the call and persists a deferred marker so that
+ * `-p --resume` can re-evaluate the hook later. In interactive mode, defer
+ * falls back to `ask`.
+ */
+export type PermissionDeferDecision = {
+  behavior: 'defer'
+  message?: string
+  toolUseID?: string
+}
+
+/**
+ * A permission decision - allow, ask, or deny.
+ *
+ * NOTE: PreToolUse hooks may additionally return a {@link PermissionDeferDecision}.
+ * That decision is resolved into one of the three terminal behaviors above before
+ * reaching the rule/runtime pipeline (interactive → ask, headless -p → pause &
+ * persist a deferred marker for `-p --resume` to re-evaluate).
  */
 export type PermissionDecision<
   Input extends { [key: string]: unknown } = { [key: string]: unknown },

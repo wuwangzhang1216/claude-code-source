@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/anthropics/claude-code"><img src="https://img.shields.io/badge/Claude_Code-v2.1.88-6B4FBB?style=for-the-badge" alt="Claude Code v2.1.88"></a>
+  <a href="https://github.com/anthropics/claude-code"><img src="https://img.shields.io/badge/Claude_Code-v2.1.89-6B4FBB?style=for-the-badge" alt="Claude Code v2.1.89"></a>
   <a href="#license"><img src="https://img.shields.io/badge/License-Educational_Only-red?style=for-the-badge" alt="Educational Only"></a>
   <a href="#deep-analysis-series"><img src="https://img.shields.io/badge/Articles-18_Deep_Dives-blue?style=for-the-badge" alt="18 Articles"></a>
   <a href="#run-from-source"><img src="https://img.shields.io/badge/Status-Runnable-brightgreen?style=for-the-badge" alt="Runnable"></a>
@@ -22,6 +22,8 @@
 This repository contains the **extracted source code** of [Claude Code](https://claude.ai/code) (Anthropic's AI programming CLI) along with **18 original deep-analysis articles** (bilingual: English & Chinese) dissecting its architecture. The source was discovered from publicly available repositories and is provided **strictly for educational and research purposes**.
 
 All intellectual property rights of the source code belong exclusively to **Anthropic, PBC**.
+
+> **Kept in sync with upstream.** This repository tracks the official Claude Code release stream and is kept current with the latest version. Each upstream release has a corresponding update applying the user-facing, tractable subset of its changelog — see [`CHANGELOG.md`](CHANGELOG.md) for the per-version record of what was applied here and what remains upstream-only.
 
 ---
 
@@ -158,7 +160,7 @@ We produced **18 original articles** with source-level deep dives into every maj
 
 ## Run from Source
 
-This repository supports running Claude Code locally from source (with reduced functionality). Verified working with version `2.1.88`.
+This repository supports running Claude Code locally from source (with reduced functionality). Verified working with version `2.1.89`.
 
 ### Prerequisites
 
