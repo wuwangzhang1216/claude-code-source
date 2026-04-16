@@ -724,16 +724,28 @@ export async function queryModelWithoutStreaming({
   // Store the assistant message but continue consuming the generator to ensure
   // logAPISuccessAndDuration gets called (which happens after all yields)
   let assistantMessage: AssistantMessage | undefined
-  for await (const message of withStreamingVCR(messages, async function* () {
-    yield* queryModel(
-      messages,
-      systemPrompt,
-      thinkingConfig,
-      tools,
-      signal,
-      options,
-    )
-  })) {
+
+  // Select the query function based on model provider
+  const selectQueryFn = async function* () {
+    // Route to ChatGPT subscription provider
+    if (options.model.startsWith('chatgpt:')) {
+      const { queryChatGPTSubscription } = await import('./providers/index.js')
+      yield* queryChatGPTSubscription(messages, systemPrompt, thinkingConfig, tools, signal, options)
+      return
+    }
+    // Route to OpenAI-compatible provider
+    if (options.model.includes(':')) {
+      const { isOpenAICompatModel, queryOpenAIModel } = await import('./providers/index.js')
+      if (isOpenAICompatModel(options.model)) {
+        yield* queryOpenAIModel(messages, systemPrompt, thinkingConfig, tools, signal, options)
+        return
+      }
+    }
+    // Default: Anthropic API
+    yield* queryModel(messages, systemPrompt, thinkingConfig, tools, signal, options)
+  }
+
+  for await (const message of withStreamingVCR(messages, selectQueryFn)) {
     if (message.type === 'assistant') {
       assistantMessage = message
     }
@@ -768,6 +780,37 @@ export async function* queryModelWithStreaming({
   void
 > {
   return yield* withStreamingVCR(messages, async function* () {
+    // Route to ChatGPT subscription provider if model starts with "chatgpt:"
+    if (options.model.startsWith('chatgpt:')) {
+      const { queryChatGPTSubscription } = await import('./providers/index.js')
+      yield* queryChatGPTSubscription(
+        messages,
+        systemPrompt,
+        thinkingConfig,
+        tools,
+        signal,
+        options,
+      )
+      return
+    }
+
+    // Route to OpenAI-compatible provider if model matches "provider:model" format
+    if (options.model.includes(':')) {
+      const { isOpenAICompatModel, queryOpenAIModel } = await import('./providers/index.js')
+      if (isOpenAICompatModel(options.model)) {
+        yield* queryOpenAIModel(
+          messages,
+          systemPrompt,
+          thinkingConfig,
+          tools,
+          signal,
+          options,
+        )
+        return
+      }
+    }
+
+    // Default: Anthropic API path
     yield* queryModel(
       messages,
       systemPrompt,

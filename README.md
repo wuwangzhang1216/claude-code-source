@@ -168,7 +168,7 @@ This repository supports running Claude Code locally from source (with reduced f
 |:---|:---|
 | **Node.js** >= 18 | For the setup script |
 | **Bun** >= 1.0 | Runtime for Claude Code (auto-installed by setup) |
-| **Authentication** | Claude Pro/Max/Team subscription (OAuth) **or** API key (`sk-ant-xxx`) |
+| **Authentication** | Claude Pro/Max/Team subscription (OAuth), API key (`sk-ant-xxx`), ChatGPT subscription, or OpenAI API key |
 
 ### Quick start
 
@@ -200,6 +200,51 @@ export ANTHROPIC_API_KEY="sk-ant-xxx"
 </details>
 
 <details>
+<summary><strong>Alternative: Use GPT-5.4 via ChatGPT subscription</strong></summary>
+
+If you have a ChatGPT Plus/Pro/Team subscription, you can use GPT-5.4 as the agent model — no API key needed:
+
+```bash
+# 1. Login with your ChatGPT account (opens browser)
+./start.sh chatgpt-login
+
+# 2. Launch with GPT-5.4
+./start.sh --model gpt5.4
+```
+
+<p align="center">
+  <img src="assets/chatGPT-sub.png" alt="GPT-5.4 running via ChatGPT subscription" width="100%">
+  <br>
+  <em>Running GPT-5.4 via ChatGPT subscription as the agent model</em>
+</p>
+
+Available GPT model aliases: `gpt5.4`, `gpt5.4-mini`, `gpt5.4-nano`
+
+You can also use the full format: `--model chatgpt:gpt-5.4`
+
+</details>
+
+<details>
+<summary><strong>Alternative: Use OpenAI API key</strong></summary>
+
+```bash
+export OPENAI_API_KEY="sk-xxx"
+./start.sh --model openai:gpt-5.4
+```
+
+Other OpenAI-compatible providers are also supported:
+
+```bash
+export DEEPSEEK_API_KEY="sk-xxx"
+./start.sh --model deepseek:deepseek-chat
+
+export MISTRAL_API_KEY="xxx"
+./start.sh --model mistral:mistral-large-latest
+```
+
+</details>
+
+<details>
 <summary><strong>Windows users</strong></summary>
 
 ```cmd
@@ -225,7 +270,7 @@ These files are **not** part of the original source — they were created to mak
 | `bunfig.toml` | Bun config specifying the preload plugin |
 | `preload.ts` | Core shim: `bun:bundle` mock (`feature()` returns `false`), `MACRO.*` global injection |
 | `scripts/setup.mjs` | One-command setup: dependency install, private package stubs, missing file generation, ripgrep download |
-| `start.sh` | macOS/Linux launcher with OAuth login (`./start.sh login`), credential detection (Keychain/file/env), proxy auto-detection |
+| `start.sh` | macOS/Linux launcher with OAuth login (`./start.sh login`), credential detection (Keychain/file/env), proxy auto-detection, Bun transpiler cache cleanup |
 
 ### How it works
 
@@ -284,6 +329,7 @@ TypeScript source
 | `bun: command not found` | Install Bun: `curl -fsSL https://bun.sh/install \| bash` |
 | `No authentication found` | Run `./start.sh login` for OAuth, or `export ANTHROPIC_API_KEY="sk-ant-xxx"` for API key |
 | Using a non-Anthropic proxy | `start.sh` auto-detects; manual: set `DISABLE_PROMPT_CACHING=1` and `DISABLE_INTERLEAVED_THINKING=1` |
+| Only works from one directory / hangs after moving source | Bun caches transpiled modules by absolute path. `start.sh` clears the cache automatically. If launching manually: `rm -rf ~/Library/Caches/bun` (macOS) or `rm -rf ~/.cache/bun` (Linux) |
 
 ### Want the official release?
 
@@ -301,7 +347,7 @@ npm install -g @anthropic-ai/claude-code
 | **Language** | TypeScript with React JSX |
 | **UI** | React 19, custom terminal reconciler, 146+ components |
 | **CLI** | Commander.js 12 |
-| **AI/LLM** | Anthropic SDK, Claude Agent SDK, AWS Bedrock, Azure Identity |
+| **AI/LLM** | Anthropic SDK, Claude Agent SDK, OpenAI SDK, AWS Bedrock, Azure Identity |
 | **Protocols** | Model Context Protocol (MCP, 6 transports), LSP, OAuth/XAA |
 | **Observability** | OpenTelemetry (traces, metrics, logs) with OTLP exporters |
 | **Code tools** | ripgrep, Sharp (image processing), Marked, Turndown, Diff |

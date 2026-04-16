@@ -6,6 +6,9 @@ export const MODEL_ALIASES = [
   'sonnet[1m]',
   'opus[1m]',
   'opusplan',
+  'gpt5.4',
+  'gpt5.4-mini',
+  'gpt5.4-nano',
 ] as const
 export type ModelAlias = (typeof MODEL_ALIASES)[number]
 
@@ -22,4 +25,11 @@ export const MODEL_FAMILY_ALIASES = ['sonnet', 'opus', 'haiku'] as const
 
 export function isModelFamilyAlias(model: string): boolean {
   return (MODEL_FAMILY_ALIASES as readonly string[]).includes(model)
+}
+
+/**
+ * Check if a model alias targets a GPT model (resolved via ChatGPT subscription).
+ */
+export function isGPTAlias(modelInput: string): boolean {
+  return modelInput.startsWith('gpt')
 }

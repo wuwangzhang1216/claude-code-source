@@ -87,6 +87,11 @@ export function getAgentModel(
     })
   }
 
+  // Pass through provider:model and chatgpt:model formats unchanged
+  if (agentModelWithExp.includes(':')) {
+    return agentModelWithExp
+  }
+
   if (aliasMatchesParentTier(agentModelWithExp, parentModel)) {
     return parentModel
   }
@@ -147,6 +152,11 @@ export function getAgentModelOptions(): AgentModelOption[] {
       value: 'haiku',
       label: 'Haiku',
       description: 'Fast and efficient for simple tasks',
+    },
+    {
+      value: 'gpt5.4',
+      label: 'GPT-5.4',
+      description: 'OpenAI GPT-5.4 via ChatGPT subscription',
     },
     {
       value: 'inherit',

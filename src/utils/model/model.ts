@@ -26,7 +26,7 @@ import type { PermissionMode } from '../permissions/PermissionMode.js'
 import { getAPIProvider } from './providers.js'
 import { LIGHTNING_BOLT } from '../../constants/figures.js'
 import { isModelAllowed } from './modelAllowlist.js'
-import { type ModelAlias, isModelAlias } from './aliases.js'
+import { type ModelAlias, isModelAlias, isGPTAlias } from './aliases.js'
 import { capitalize } from '../stringUtils.js'
 
 export type ModelShortName = string
@@ -379,6 +379,17 @@ export function getPublicModelDisplayName(model: ModelName): string | null {
     case getModelStrings().haiku35:
       return 'Haiku 3.5'
     default:
+      // Handle OpenAI-compatible and ChatGPT subscription models
+      if (model.startsWith('chatgpt:')) {
+        const modelId = model.slice(8)
+        return `ChatGPT ${modelId.toUpperCase()}`
+      }
+      if (model.includes(':')) {
+        const colonIdx = model.indexOf(':')
+        const provider = model.slice(0, colonIdx)
+        const modelId = model.slice(colonIdx + 1)
+        return `${capitalize(provider)}: ${modelId}`
+      }
       return null
   }
 }
@@ -465,8 +476,20 @@ export function parseUserSpecifiedModel(
         return getDefaultOpusModel() + (has1mTag ? '[1m]' : '')
       case 'best':
         return getBestModel()
+      // GPT model aliases -> resolve to chatgpt:model format for ChatGPT subscription
+      case 'gpt5.4':
+        return 'chatgpt:gpt-5.4'
+      case 'gpt5.4-mini':
+        return 'chatgpt:gpt-5.4-mini'
+      case 'gpt5.4-nano':
+        return 'chatgpt:gpt-5.4-nano'
       default:
     }
+  }
+
+  // Pass through provider:model and chatgpt:model formats unchanged
+  if (modelString.startsWith('chatgpt:') || modelString.startsWith('openai:') || modelString.includes(':')) {
+    return modelInputTrimmed
   }
 
   // Opus 4/4.1 are no longer available on the first-party API (same as

@@ -23,6 +23,7 @@
     "@commander-js/extra-typings": "12",
     "@growthbook/growthbook": "latest",
     "@modelcontextprotocol/sdk": "latest",
+    "openai": "latest",
     "@opentelemetry/api": "latest",
     "@opentelemetry/api-logs": "latest",
     "@opentelemetry/core": "latest",
@@ -98,7 +99,7 @@
     "zod": "latest"
   },
   "devDependencies": {
-    "@types/react": "latest",
-    "@types/node": "latest"
+    "@types/node": "latest",
+    "@types/react": "latest"
   }
 }

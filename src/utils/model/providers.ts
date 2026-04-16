@@ -13,6 +13,14 @@ export function getAPIProvider(): APIProvider {
         : 'firstParty'
 }
 
+/**
+ * Check if a model string targets an OpenAI-compatible provider (provider:model format)
+ * or a ChatGPT subscription (chatgpt:model format).
+ */
+export function isThirdPartyModel(model: string): boolean {
+  return model.startsWith('chatgpt:') || model.includes(':')
+}
+
 export function getAPIProviderForStatsig(): AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS {
   return getAPIProvider() as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
 }
