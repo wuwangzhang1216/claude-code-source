@@ -219,6 +219,19 @@ export function convertToSandboxRuntimeConfig(
     }
   }
 
+  // sandbox.network.deniedDomains always applies, regardless of managed-only mode.
+  // Deny rules take precedence over allowedDomains wildcards — users configuring
+  // a broad allowedDomains still need a way to blocklist specific hosts.
+  const policyDeniedDomains =
+    getSettingsForSource('policySettings')?.sandbox?.network?.deniedDomains ||
+    []
+  for (const domain of policyDeniedDomains) {
+    deniedDomains.push(domain)
+  }
+  for (const domain of settings.sandbox?.network?.deniedDomains || []) {
+    deniedDomains.push(domain)
+  }
+
   // Extract filesystem paths from Edit and Read rules
   // Always include current directory and Claude temp directory as writable
   // The temp directory is needed for Shell.ts cwd tracking files

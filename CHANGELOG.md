@@ -2,6 +2,32 @@
 
 All notable changes tracked here. This is a local/educational source mirror of Claude Code, not an official release stream.
 
+## 2.1.113 — April 17, 2026
+
+Applies the user-facing, tractable subset of the upstream 2.1.113 changelog.
+
+### Applied in this local source tree
+
+- **Added `sandbox.network.deniedDomains` setting** — lets users block specific domains even when a broader `allowedDomains` wildcard would otherwise permit them. Wired into `SandboxNetworkConfigSchema` alongside `allowedDomains`, and merged into the runtime `deniedDomains` list in `convertToSandboxRuntimeConfig()` from both `settings.sandbox.network.deniedDomains` and `policySettings.sandbox.network.deniedDomains`. Always applies regardless of managed-only mode, since deny rules take precedence over allow wildcards (`src/entrypoints/sandboxTypes.ts`, `src/utils/sandbox/sandbox-adapter.ts`).
+- **Bumped local source version to `2.1.113`** (from `2.1.111`) — `package.json` and `preload.ts` MACRO. Upstream skipped `2.1.112`.
+
+### Not applied (upstream-only or out of scope)
+
+- Native Claude Code binary distribution via per-platform optional dependencies — distribution/packaging change, N/A for a local source mirror.
+- Fullscreen Shift+↑/↓ scroll-when-extending-selection, Ctrl+A/Ctrl+E logical-line navigation, Windows Ctrl+Backspace word-delete, Cmd-backspace/Ctrl+U line-kill restore, prompt cursor visibility under `NO_COLOR`, slash/@ completion menu flush rendering — input/TUI rendering details that live in obfuscated Ink components beyond the faithful-mirror line.
+- OSC 8 long-URL clickability across wrapped lines — terminal-specific rendering.
+- `/loop` Esc cancel + "resuming /loop wakeup" label, `/extra-usage` from Remote Control, Remote Control @-file autocomplete, Remote Control subagent streaming, Remote Control session archiving, "Refine with Ultraplan" remote URL — Remote Control/cloud bridge features not present in this mirror.
+- `/ultrareview` launch polish (parallelized checks, diffstat, animated launching) — cloud multi-agent feature.
+- Subagent 10-minute stall timeout, MCP concurrent-call watchdog disarm fix, SDK image content block crash → text-placeholder degrade — subagent/SDK internals in obfuscated source.
+- Bash tool multi-line comment UI-spoofing fix, Bash `dangerouslyDisableSandbox` permission-prompt fix, `cd <current-directory> && git …` no-op permission-prompt skip, macOS `/private/{etc,var,tmp,home}` dangerous-removal rules, Bash deny-rule matching under `env/sudo/watch/ionice/setsid` wrappers, `Bash(find:*)` not auto-approving `-exec`/`-delete` — security/permission-prompt fixes that live in Bash tool scaffolding not fully mirrored here.
+- Markdown table rendering with pipes in inline code spans, `/copy` "Full response" table column alignment, session recap not auto-firing while composing, "copied N chars" toast overcount under emoji, `/insights` EBUSY on Windows, exit-confirmation one-shot-vs-recurring label fix — Ink/TUI + Windows-platform fixes below our faithful-mirror line.
+- `CLAUDE_CODE_EXTRA_BODY` `output_config.effort` 400 error on subagent calls to effort-unsupported models and on Vertex AI — the effort-propagation path in our mirror is simpler; upstream fix modifies the extra-body merge in the CCR/Vertex adapter layer.
+- `thinking.type.enabled` Bedrock Application Inference Profile ARN 400 error on Opus 4.7 — Bedrock adapter plumbing not in scope.
+- ToolSearch ranking on pasted MCP tool names, compacting resumed long-context session "Extra usage required" fix, plugin install version-range conflict reporting, subagent transcript message misattribution, messages-typed-while-viewing-subagent hidden — internal flows in obfuscated source with no tractable local touchpoint.
+- `/effort auto` confirmation wording ("Effort level set to max" to match status bar) — the upstream change requires threading the current model into `unsetEffortLevel()` and computing the displayed level there; mechanically small but speculative without the exact status-bar-label function, and cosmetic.
+
+---
+
 ## 2.1.111 — April 16, 2026
 
 Applies the user-facing, tractable subset of the upstream 2.1.111 changelog.

@@ -15,6 +15,13 @@ export const SandboxNetworkConfigSchema = lazySchema(() =>
   z
     .object({
       allowedDomains: z.array(z.string()).optional(),
+      deniedDomains: z
+        .array(z.string())
+        .optional()
+        .describe(
+          'Domains to block even when a broader allowedDomains wildcard would otherwise permit them. ' +
+            'Merged with WebFetch(domain:...) deny permission rules.',
+        ),
       allowManagedDomainsOnly: z
         .boolean()
         .optional()
