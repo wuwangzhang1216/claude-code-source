@@ -74,7 +74,10 @@ import {
   stripSafeHeredocSubstitutions,
 } from './bashSecurity.js'
 import { checkPermissionMode } from './modeValidation.js'
-import { checkPathConstraints } from './pathValidation.js'
+import {
+  checkDangerousRemovalInCommand,
+  checkPathConstraints,
+} from './pathValidation.js'
 import { checkSedConstraints } from './sedValidation.js'
 import { shouldUseSandbox } from './shouldUseSandbox.js'
 
@@ -1346,6 +1349,21 @@ function checkSandboxAutoAllow(
       },
     }
   }
+
+  // SECURITY: Even with sandbox auto-allow, rm/rmdir targeting critical paths
+  // (/, $HOME, /etc, /usr, ...) must still prompt the user. The sandbox's
+  // writable roots include the user's cwd and home, so containment alone does
+  // not prevent catastrophic deletions. Check every subcommand individually,
+  // since a compound command can hide an rm behind an allowed prefix.
+  const cwd = getCwd()
+  const commandsToCheck = subcommands.length > 1 ? subcommands : [command]
+  for (const sub of commandsToCheck) {
+    const dangerousResult = checkDangerousRemovalInCommand(sub, cwd)
+    if (dangerousResult.behavior !== 'passthrough') {
+      return dangerousResult
+    }
+  }
+
   // No explicit rules, so auto-allow with sandbox
 
   return {

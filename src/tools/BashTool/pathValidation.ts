@@ -784,6 +784,40 @@ export function createPathChecker(
 }
 
 /**
+ * Runs the dangerous-path safety check on a single subcommand string, if it's
+ * an rm/rmdir invocation. Returns 'ask' (with a specific dangerous-path message)
+ * if the command targets a critical path like /, $HOME, or a system directory;
+ * returns 'passthrough' otherwise.
+ *
+ * Exported so sandbox auto-allow can invoke it before allowing an rm/rmdir
+ * command to run under autoAllowBashIfSandboxed. Without this, the sandbox
+ * auto-allow path would grant permission to `rm -rf /` or `rm -rf $HOME`
+ * purely on the absence of a deny rule — the sandbox containment does not
+ * protect the user's own files inside the current writable roots.
+ */
+export function checkDangerousRemovalInCommand(
+  subcommand: string,
+  cwd: string,
+): PermissionResult {
+  const strippedCmd = stripSafeWrappers(subcommand)
+  const extractedArgs = parseCommandArguments(strippedCmd)
+  if (extractedArgs.length === 0) {
+    return {
+      behavior: 'passthrough',
+      message: 'Empty command - no paths to validate',
+    }
+  }
+  const [baseCmd, ...args] = extractedArgs
+  if (baseCmd !== 'rm' && baseCmd !== 'rmdir') {
+    return {
+      behavior: 'passthrough',
+      message: `Command '${baseCmd}' is not rm/rmdir`,
+    }
+  }
+  return checkDangerousRemovalPaths(baseCmd, args, cwd)
+}
+
+/**
  * Parses command arguments using shell-quote, converting glob objects to strings.
  * This is necessary because shell-quote parses patterns like *.txt as glob objects,
  * but we need them as strings for path validation.

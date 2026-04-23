@@ -2,6 +2,34 @@
 
 All notable changes tracked here. This is a local/educational source mirror of Claude Code, not an official release stream.
 
+## 2.1.116 — April 20, 2026
+
+Applies the user-facing, tractable subset of the upstream 2.1.116 changelog. Upstream skipped `2.1.114` and `2.1.115`.
+
+### Applied in this local source tree
+
+- **Sandbox auto-allow no longer bypasses the dangerous-path safety check for rm/rmdir** — when `autoAllowBashIfSandboxed` is on, `checkSandboxAutoAllow()` now runs `checkDangerousRemovalInCommand()` on every subcommand before returning `allow`. Any `rm`/`rmdir` targeting `/`, `$HOME`, `/etc`, `/usr` etc. produces an `ask` decision with a specific "Dangerous … operation on critical path" message, instead of being silently allowed because no deny rule matched. The new helper in `pathValidation.ts` reuses the existing `checkDangerousRemovalPaths()` internals and `stripSafeWrappers()` so commands like `timeout 10 rm -rf /` are also caught (`src/tools/BashTool/pathValidation.ts`, `src/tools/BashTool/bashPermissions.ts`).
+- **Bumped local source version to `2.1.116`** (from `2.1.113`) — `package.json` and `preload.ts` MACRO.
+
+### Not applied (upstream-only or out of scope)
+
+- `/resume` speedup on large sessions and dead-fork-heavy sessions — internal parser/loader optimization in obfuscated session-reading code; no tractable local touchpoint.
+- Faster MCP stdio startup + deferred `resources/templates/list` — MCP client startup orchestration lives in obfuscated init code; the deferred-list behavior would require reworking the MCP registration path.
+- Smoother fullscreen scrolling in VS Code / Cursor / Windsurf (`/terminal-setup` writes editor scroll sensitivity) — terminal-setup is a hosted configuration command; editor-specific config writing not mirrored.
+- Inline thinking-spinner progress ("still thinking", "thinking more", "almost done thinking") — Ink spinner rendering in obfuscated TUI source.
+- `/config` search matching option values — obfuscated settings UI.
+- `/doctor` opening while Claude is responding — requires reworking the in-flight-turn dialog gate.
+- `/reload-plugins` and background plugin auto-update auto-installing missing marketplace deps — plugin-subsystem internals beyond the simplified mirror.
+- Bash tool `gh` GitHub API rate-limit hint — adds a specific post-exec hint path in the Bash tool result formatter; cosmetic, not security-critical.
+- Settings Usage tab 5-hour/weekly immediate + rate-limit-tolerant — Settings UI in obfuscated source; depends on the rate-limited Usage endpoint client.
+- Agent frontmatter hooks firing for `--agent` main-thread agents — agent-frontmatter hook dispatch lives in obfuscated agent-runner code.
+- Slash-command menu "No commands match" empty-state — Ink menu rendering in obfuscated TUI source.
+- Devanagari/Indic column alignment, Ctrl+- undo under Kitty protocol, Cmd+Left/Right under Kitty protocol, Ctrl+Z hang under wrapper, inline-mode scrollback duplication, modal search overflow at short heights, VS Code integrated terminal scattered blank cells — terminal/TUI input and rendering bugs in obfuscated Ink source.
+- API 400 cache-control TTL ordering fix on parallel request setup — lives in the Anthropic API client wrapper, obfuscated.
+- `/branch` 50MB transcript reject, `/resume` empty-load silent-success, `/plugin` Installed tab deduplication, `/update` and `/tui` not working after worktree mid-session — command handlers in obfuscated source with no direct local hook.
+
+---
+
 ## 2.1.113 — April 17, 2026
 
 Applies the user-facing, tractable subset of the upstream 2.1.113 changelog.
