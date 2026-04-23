@@ -2,6 +2,38 @@
 
 All notable changes tracked here. This is a local/educational source mirror of Claude Code, not an official release stream.
 
+## 2.1.111 — April 16, 2026
+
+Applies the user-facing, tractable subset of the upstream 2.1.111 changelog.
+
+### Applied in this local source tree
+
+- **Added `xhigh` effort level for Opus 4.7** — sits between `high` and `max`. Available via `/effort`, `--effort`, and the model picker cycle; other models downgrade to `high` at resolve time. `modelSupportsXHighEffort()` gates it to Opus 4.7 (`opus-4-7` substring match), mirroring the `modelSupportsMaxEffort()` Opus-4.6 gate. Surfaces updated: `EFFORT_LEVELS`, `EffortLevel` type, `toPersistableEffort`, `resolveAppliedEffort`, numeric→level conversion band (95→xhigh), `getEffortLevelDescription`; settings Zod enum; `--effort` CLI arg validator; `/effort` help text + argument hint + invalid-arg message; SDK `coreSchemas` (`supportedEffortLevels`, agent `effort`) + `controlSchemas` (`applied.effort`); `ModelPicker` cycle adds xhigh when `modelSupportsXHighEffort` is true, downgrade-on-display mirrors the max path (`src/utils/effort.ts`, `src/utils/settings/types.ts`, `src/main.tsx`, `src/commands/effort/{effort.tsx,index.ts}`, `src/entrypoints/sdk/{coreSchemas.ts,controlSchemas.ts}`, `src/components/ModelPicker.tsx`, `src/utils/frontmatterParser.ts`).
+- **Added `OTEL_LOG_RAW_API_BODIES` and `CLAUDE_CODE_USE_POWERSHELL_TOOL` to `SAFE_ENV_VARS`** — supports the upstream 2.1.111 "emit full API request/response bodies as OTEL log events for debugging" toggle and the progressively-rolled-out Windows PowerShell tool opt-in/out (`src/utils/managedEnvConstants.ts`).
+- **Added near-miss subcommand typo suggestion** — `claude udpate` now prints `Did you mean claude update?` before falling through to the default prompt action. Implemented as a pre-parse check in `run()` since the default command accepts a positional prompt (commander wouldn't flag the typo as an unknown command). Uses Damerau-Levenshtein edit distance with a length-scaled threshold (1 for ≤4 chars, 2 otherwise), and only triggers on a single bare positional — multi-word prompts are left alone (`src/main.tsx`).
+- **Plan files named after the user's prompt** — added `buildPromptPlanSlugPrefix()` (kebab-case, strip URLs/slash-commands, ≤4 words / ≤40 chars) and a session-keyed prompt-hint map. `handlePromptSubmit` registers the hint on the first user message; `getPlanSlug()` uses it as a prefix and appends a random word suffix for uniqueness (e.g. `fix-auth-race-snug-otter.md`). Purely-random slugs remain the fallback when no hint is registered (`src/utils/plans.ts`, `src/utils/handlePromptSubmit.ts`).
+- **Enabled commander `showSuggestionAfterError(true)`** — explicit opt-in so unknown subcommand and option typos inside command groups (`claude mcp lsit`) get the built-in "(Did you mean …?)" hint (`src/main.tsx`).
+- **Bumped local source version to `2.1.111`** (from `2.1.110`) — `package.json` and `preload.ts` MACRO.
+
+### Not applied (upstream-only or out of scope)
+
+- Auto mode no longer requiring `--enable-auto-mode` — the flag is gated behind `feature('TRANSCRIPT_CLASSIFIER')`, which is stubbed to false in this mirror, so the flag is effectively unreachable here already; the upstream change also removes the persistent opt-in dialog gate, which lives in setup screens we don't fully mirror.
+- Auto mode availability for Max subscribers on Opus 4.7 — GrowthBook-gated; not a code change in our mirror.
+- `/effort` interactive slider (arrow-key selector) when called without arguments — the command-scaffold change is UI-only and would require a new `LocalJSXCommand` picker component.
+- `/ultrareview` cloud multi-agent code review command — cloud infra, CCR-side.
+- "Auto (match terminal)" theme option — terminal-introspection plumbing (dark/light detection) not present in this mirror.
+- `/less-permission-prompts` skill — already surfaced via the skills registry (listed in the skills reminder); no local scaffolding needed.
+- `/skills` menu token-count sort (`t` toggle), transcript view shortcuts (`[`, `v`), full-width truncation rule, `/effort` interactive slider, `+N lines` rule change — all Ink/TUI rendering polish below the faithful-mirror line.
+- PowerShell tool progressive rollout on Windows — the env var is now safe-env; the tool's Windows-specific rollout code is not mirrored.
+- Read-only bash commands with glob patterns / `cd <project-dir> &&` prefix permission skip — requires extending the read-only classifier in `readOnlyCommandValidation.ts`; upstream change is nontrivial and security-sensitive.
+- Plugin error propagation on headless init event, plugin dependency error distinction (conflicting/invalid/overly-complex version requirements), plugin update stale-version / interrupted-install recovery — plugin-subsystem internals beyond the simplified mirror.
+- Reverted v2.1.110 non-streaming fallback retry cap — the cap was never applied in our mirror, so nothing to revert.
+- `/setup-vertex` and `/setup-bedrock` improvements (show actual settings.json path when `CLAUDE_CONFIG_DIR` is set, seed candidates from existing pins, offer "with 1M context") — setup-command internals; local command scaffolds are minimal.
+- Ctrl+U / Ctrl+Y / Ctrl+L keybinding semantics, iTerm2+tmux display tearing, `@` file suggestions scanning non-git directories, LSP diagnostic ordering, `/resume` tab-completion bypassing picker, `/context` grid blank lines, `/clear` dropping session_name, `/rename` persistence, feedback survey back-to-back dismissal, bare-URL wrapping clickability, Windows env-file propagation, Windows drive-letter permission path normalization — terminal/TUI/platform-specific patches below our faithful-mirror line.
+- OTEL trace for 429 referencing the wrong status page on Bedrock/Vertex/Foundry, `Unknown skill: commit` misroute, plugin install recovery — internal fixes without a direct local touchpoint in this mirror.
+
+---
+
 ## 2.1.110 — April 15, 2026
 
 Applies the user-facing, tractable subset of the upstream 2.1.110 changelog.

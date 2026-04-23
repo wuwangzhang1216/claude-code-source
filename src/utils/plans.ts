@@ -23,11 +23,75 @@ import { getInitialSettings } from './settings/settings.js'
 import { generateWordSlug } from './words.js'
 
 const MAX_SLUG_RETRIES = 10
+// Upstream 2.1.111: plan files are named after the user's prompt. We keep
+// the prompt-derived prefix short and cap the total length; the random
+// word suffix disambiguates collisions (e.g. `fix-auth-race-snug-otter.md`).
+const PROMPT_SLUG_MAX_WORDS = 4
+const PROMPT_SLUG_MAX_CHARS = 40
+
+/**
+ * Convert a user prompt into a short kebab-case prefix suitable for a plan
+ * filename. Returns null when the prompt produces no usable word.
+ *
+ * Used by callers that have the first user prompt for this session before
+ * the plan slug is first requested. Downcase, drop URLs, keep only
+ * `[a-z0-9]` word characters, trim to a few leading words.
+ */
+export function buildPromptPlanSlugPrefix(prompt: string): string | null {
+  if (!prompt) return null
+  // Strip slash-commands and URLs so `/plan https://…` doesn't become the slug.
+  const cleaned = prompt
+    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/\/[a-z][\w:-]*/gi, ' ')
+    .toLowerCase()
+  const words: string[] = []
+  for (const token of cleaned.split(/[^a-z0-9]+/)) {
+    if (!token) continue
+    if (token.length < 2) continue
+    words.push(token)
+    if (words.length >= PROMPT_SLUG_MAX_WORDS) break
+  }
+  if (words.length === 0) return null
+  let prefix = words.join('-')
+  if (prefix.length > PROMPT_SLUG_MAX_CHARS) {
+    prefix = prefix.slice(0, PROMPT_SLUG_MAX_CHARS).replace(/-+$/, '')
+  }
+  return prefix || null
+}
+
+// Session-keyed map of prompt-derived prefixes, populated by the message
+// pipeline when the first user prompt is known. Consulted by getPlanSlug on
+// first access for a session.
+const PLAN_SLUG_PROMPT_HINTS = new Map<SessionId | string, string>()
+
+/**
+ * Register the first user prompt for this session so the next getPlanSlug()
+ * call builds a prompt-derived slug instead of purely random words.
+ *
+ * Safe to call multiple times; only the first call that precedes getPlanSlug()
+ * wins (later calls are ignored once the slug is cached).
+ */
+export function setPlanSlugPromptHint(sessionId: SessionId, prompt: string): void {
+  const prefix = buildPromptPlanSlugPrefix(prompt)
+  if (prefix) PLAN_SLUG_PROMPT_HINTS.set(sessionId, prefix)
+}
+
+/**
+ * Clear the prompt hint for a session (e.g. on /clear so the next plan
+ * starts from a fresh prompt).
+ */
+export function clearPlanSlugPromptHint(sessionId: SessionId): void {
+  PLAN_SLUG_PROMPT_HINTS.delete(sessionId)
+}
 
 /**
  * Get or generate a word slug for the current session's plan.
  * The slug is generated lazily on first access and cached for the session.
  * If a plan file with the generated slug already exists, retries up to 10 times.
+ *
+ * Upstream 2.1.111: if a prompt hint has been registered for this session,
+ * the slug starts with prompt-derived words and appends a random word
+ * suffix for uniqueness (e.g. `fix-auth-race-snug-otter`).
  */
 export function getPlanSlug(sessionId?: SessionId): string {
   const id = sessionId ?? getSessionId()
@@ -35,9 +99,12 @@ export function getPlanSlug(sessionId?: SessionId): string {
   let slug = cache.get(id)
   if (!slug) {
     const plansDir = getPlansDirectory()
+    const promptPrefix = PLAN_SLUG_PROMPT_HINTS.get(id)
     // Try to find a unique slug that doesn't conflict with existing files
     for (let i = 0; i < MAX_SLUG_RETRIES; i++) {
-      slug = generateWordSlug()
+      slug = promptPrefix
+        ? `${promptPrefix}-${generateWordSlug()}`
+        : generateWordSlug()
       const filePath = join(plansDir, `${slug}.md`)
       if (!getFsImplementation().existsSync(filePath)) {
         break

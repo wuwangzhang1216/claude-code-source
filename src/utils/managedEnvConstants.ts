@@ -151,6 +151,7 @@ export const SAFE_ENV_VARS = new Set([
   'CLAUDE_CODE_SUBAGENT_MODEL',
   'CLAUDE_CODE_USE_BEDROCK',
   'CLAUDE_CODE_USE_FOUNDRY',
+  'CLAUDE_CODE_USE_POWERSHELL_TOOL',
   'CLAUDE_CODE_USE_VERTEX',
   'DISABLE_AUTOUPDATER',
   'DISABLE_BUG_COMMAND',
@@ -173,6 +174,10 @@ export const SAFE_ENV_VARS = new Set([
   'OTEL_EXPORTER_OTLP_METRICS_PROTOCOL',
   'OTEL_EXPORTER_OTLP_PROTOCOL',
   'OTEL_EXPORTER_OTLP_TRACES_HEADERS',
+  // Upstream 2.1.111: emits full API request/response bodies as OTEL log events
+  // for debugging. Safe to allow — it only toggles local log verbosity, not
+  // an attacker-controlled endpoint.
+  'OTEL_LOG_RAW_API_BODIES',
   'OTEL_LOG_TOOL_DETAILS',
   'OTEL_LOG_USER_PROMPTS',
   'OTEL_LOGS_EXPORT_INTERVAL',

@@ -26,6 +26,8 @@ import { fileHistoryEnabled, fileHistoryMakeSnapshot } from './fileHistory.js'
 import { gracefulShutdownSync } from './gracefulShutdown.js'
 import { enqueue } from './messageQueueManager.js'
 import { resolveSkillModelOverride } from './model/model.js'
+import { setPlanSlugPromptHint } from './plans.js'
+import { getSessionId } from '../bootstrap/state.js'
 import type { ProcessUserInputContext } from './processUserInput/processUserInput.js'
 import { processUserInput } from './processUserInput/processUserInput.js'
 import type { QueryGuard } from './QueryGuard.js'
@@ -187,6 +189,15 @@ export async function handlePromptSubmit(
   const hasImages = Object.values(pastedContents).some(isValidImagePaste)
   if (input.trim() === '') {
     return
+  }
+
+  // Upstream 2.1.111: register this prompt as the hint for the next plan
+  // slug generation so plan filenames read like the user's request
+  // (e.g. fix-auth-race-snug-otter.md) rather than purely random words.
+  // Only acts on the first user message of the session — the plan slug
+  // is cached on first access, so later prompts are no-ops.
+  if (messages.length === 0) {
+    setPlanSlugPromptHint(getSessionId(), input)
   }
 
   // Handle exit commands by triggering the exit command instead of direct process.exit

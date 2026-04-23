@@ -6,14 +6,17 @@ import { getFeatureValue_CACHED_MAY_BE_STALE } from 'src/services/analytics/grow
 import { getAPIProvider } from './model/providers.js'
 import { get3PModelCapabilityOverride } from './model/modelSupportOverrides.js'
 import { isEnvTruthy } from './envUtils.js'
-import type { EffortLevel } from 'src/entrypoints/sdk/runtimeTypes.js'
-
-export type { EffortLevel }
+// Upstream 2.1.111 added 'xhigh' for Opus 4.7, sitting between 'high' and 'max'.
+// Other models fall back to 'high' when xhigh is requested.
+// We define EffortLevel locally rather than importing from the stubbed
+// runtimeTypes.js so the new level is first-class in our source tree.
+export type EffortLevel = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 
 export const EFFORT_LEVELS = [
   'low',
   'medium',
   'high',
+  'xhigh',
   'max',
 ] as const satisfies readonly EffortLevel[]
 
@@ -64,6 +67,21 @@ export function modelSupportsMaxEffort(model: string): boolean {
   return false
 }
 
+// Upstream 2.1.111: 'xhigh' is Opus 4.7 only; other models fall back to 'high'.
+export function modelSupportsXHighEffort(model: string): boolean {
+  const supported3P = get3PModelCapabilityOverride(model, 'xhigh_effort')
+  if (supported3P !== undefined) {
+    return supported3P
+  }
+  if (model.toLowerCase().includes('opus-4-7')) {
+    return true
+  }
+  if (process.env.USER_TYPE === 'ant' && resolveAntModel(model)) {
+    return true
+  }
+  return false
+}
+
 export function isEffortLevel(value: string): value is EffortLevel {
   return (EFFORT_LEVELS as readonly string[]).includes(value)
 }
@@ -96,6 +114,10 @@ export function toPersistableEffort(
   value: EffortValue | undefined,
 ): EffortLevel | undefined {
   if (value === 'low' || value === 'medium' || value === 'high') {
+    return value
+  }
+  // xhigh is persistable — it's a normal public level as of 2.1.111.
+  if (value === 'xhigh') {
     return value
   }
   if (value === 'max' && process.env.USER_TYPE === 'ant') {
@@ -163,6 +185,10 @@ export function resolveAppliedEffort(
   if (resolved === 'max' && !modelSupportsMaxEffort(model)) {
     return 'high'
   }
+  // Upstream 2.1.111: 'xhigh' only applies to Opus 4.7 — downgrade to 'high'.
+  if (resolved === 'xhigh' && !modelSupportsXHighEffort(model)) {
+    return 'high'
+  }
   return resolved
 }
 
@@ -209,7 +235,8 @@ export function convertEffortValueToLevel(value: EffortValue): EffortLevel {
   if (process.env.USER_TYPE === 'ant' && typeof value === 'number') {
     if (value <= 50) return 'low'
     if (value <= 85) return 'medium'
-    if (value <= 100) return 'high'
+    if (value <= 95) return 'high'
+    if (value <= 100) return 'xhigh'
     return 'max'
   }
   return 'high'
@@ -229,6 +256,8 @@ export function getEffortLevelDescription(level: EffortLevel): string {
       return 'Balanced approach with standard implementation and testing'
     case 'high':
       return 'Comprehensive implementation with extensive testing and documentation'
+    case 'xhigh':
+      return 'Deeper reasoning than high, lighter than max (Opus 4.7 only)'
     case 'max':
       return 'Maximum capability with deepest reasoning (Opus 4.6 only)'
   }

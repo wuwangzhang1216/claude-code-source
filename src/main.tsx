@@ -881,6 +881,73 @@ async function getInputPrompt(prompt: string, inputFormat: 'text' | 'stream-json
   }
   return prompt;
 }
+
+/**
+ * Upstream 2.1.111: suggest the closest matching subcommand when
+ * `claude <word>` is invoked with a near-miss typo.
+ *
+ * Runs before commander parseAsync because the default command accepts a
+ * positional prompt argument — commander would otherwise silently treat
+ * `claude udpate` as prompting the model with the word "udpate" instead
+ * of flagging the typo.
+ */
+function maybeSuggestSubcommandTypo(program: CommanderCommand, argv: readonly string[]): void {
+  // Skip first two entries: argv[0] is the node/bun binary, argv[1] is the
+  // claude script path. The third entry is the first user-supplied token.
+  const firstArg = argv[2];
+  if (!firstArg || firstArg.startsWith('-')) return;
+  // Only trigger on a single bare positional — anything longer is almost
+  // certainly a prompt, not a mistyped subcommand.
+  const remaining = argv.slice(3).filter(a => !a.startsWith('-'));
+  if (remaining.length > 0) return;
+  // Already a known subcommand or alias — commander will dispatch it.
+  const commandNames = program.commands.flatMap((cmd) => {
+    const name = cmd.name();
+    const aliases = typeof cmd.aliases === 'function' ? cmd.aliases() : [];
+    return [name, ...aliases];
+  });
+  if (commandNames.includes(firstArg)) return;
+
+  // Damerau-Levenshtein-ish edit distance for transposition-heavy typos.
+  function editDistance(a: string, b: string): number {
+    if (a === b) return 0;
+    if (a.length === 0) return b.length;
+    if (b.length === 0) return a.length;
+    const dp: number[][] = Array.from({ length: a.length + 1 }, () => new Array<number>(b.length + 1).fill(0));
+    for (let i = 0; i <= a.length; i++) dp[i]![0] = i;
+    for (let j = 0; j <= b.length; j++) dp[0]![j] = j;
+    for (let i = 1; i <= a.length; i++) {
+      for (let j = 1; j <= b.length; j++) {
+        const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+        dp[i]![j] = Math.min(
+          dp[i - 1]![j]! + 1,
+          dp[i]![j - 1]! + 1,
+          dp[i - 1]![j - 1]! + cost,
+        );
+        if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+          dp[i]![j] = Math.min(dp[i]![j]!, dp[i - 2]![j - 2]! + 1);
+        }
+      }
+    }
+    return dp[a.length]![b.length]!;
+  }
+
+  // Threshold scales with input length: 1 for short commands, 2 for longer.
+  const threshold = firstArg.length <= 4 ? 1 : 2;
+  let best: { name: string; distance: number } | null = null;
+  for (const name of commandNames) {
+    const d = editDistance(firstArg.toLowerCase(), name.toLowerCase());
+    if (d <= threshold && (best === null || d < best.distance)) {
+      best = { name, distance: d };
+    }
+  }
+  if (best !== null && best.name !== firstArg) {
+    process.stderr.write(
+      `Did you mean claude ${best.name}? Running as a prompt instead; add quotes to silence this hint.\n`,
+    );
+  }
+}
+
 async function run(): Promise<CommanderCommand> {
   profileCheckpoint('run_function_start');
 
@@ -899,7 +966,7 @@ async function run(): Promise<CommanderCommand> {
       compareOptions: (a: Option, b: Option) => getOptionSortKey(a).localeCompare(getOptionSortKey(b))
     });
   }
-  const program = new CommanderCommand().configureHelp(createSortedHelpConfig()).enablePositionalOptions();
+  const program = new CommanderCommand().configureHelp(createSortedHelpConfig()).enablePositionalOptions().showSuggestionAfterError(true);
   profileCheckpoint('run_commander_initialized');
 
   // Use preAction hook to run initialization only when executing a command,
@@ -997,9 +1064,9 @@ async function run(): Promise<CommanderCommand> {
     return Number.isFinite(n) ? n : undefined;
   }).hideHelp()).option('--from-pr [value]', 'Resume a session linked to a PR by PR number/URL, or open interactive picker with optional search term', value => value || true).option('--no-session-persistence', 'Disable session persistence - sessions will not be saved to disk and cannot be resumed (only works with --print)').addOption(new Option('--resume-session-at <message id>', 'When resuming, only messages up to and including the assistant message with <message.id> (use with --resume in print mode)').argParser(String).hideHelp()).addOption(new Option('--rewind-files <user-message-id>', 'Restore files to state at the specified user message and exit (requires --resume)').hideHelp())
   // @[MODEL LAUNCH]: Update the example model ID in the --model help text.
-  .option('--model <model>', `Model for the current session. Provide an alias for the latest model (e.g. 'sonnet' or 'opus') or a model's full name (e.g. 'claude-sonnet-4-6').`).addOption(new Option('--effort <level>', `Effort level for the current session (low, medium, high, max)`).argParser((rawValue: string) => {
+  .option('--model <model>', `Model for the current session. Provide an alias for the latest model (e.g. 'sonnet' or 'opus') or a model's full name (e.g. 'claude-sonnet-4-6').`).addOption(new Option('--effort <level>', `Effort level for the current session (low, medium, high, xhigh, max)`).argParser((rawValue: string) => {
     const value = rawValue.toLowerCase();
-    const allowed = ['low', 'medium', 'high', 'max'];
+    const allowed = ['low', 'medium', 'high', 'xhigh', 'max'];
     if (!allowed.includes(value)) {
       throw new InvalidArgumentError(`It must be one of: ${allowed.join(', ')}`);
     }
@@ -4507,6 +4574,13 @@ Examples:
       await completionHandler(shell, opts, program);
     });
   }
+  // Upstream 2.1.111: suggest the closest matching subcommand when
+  // `claude <word>` is invoked with a near-miss typo (e.g. `claude udpate` →
+  // "Did you mean claude update?"). Runs before parse because the default
+  // command accepts a positional prompt, so commander would otherwise
+  // silently dispatch the typo into the prompt text.
+  maybeSuggestSubcommandTypo(program, process.argv);
+
   profileCheckpoint('run_before_parse');
   await program.parseAsync(process.argv);
   profileCheckpoint('run_after_parse');

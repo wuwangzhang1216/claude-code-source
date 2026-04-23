@@ -1,6 +1,6 @@
 {
   "name": "claude-code-source",
-  "version": "2.1.110",
+  "version": "2.1.111",
   "description": "Claude Code source - local runnable setup for learning",
   "type": "module",
   "scripts": {
