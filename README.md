@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/wuwangzhang1216-claude-code-source-all-in-one-badge.png)](https://mseep.ai/app/wuwangzhang1216-claude-code-source-all-in-one)
+
 <p align="center">
   <img src="assets/anthropic-claude-code.webp" alt="Claude Code" width="100%">
 </p>
