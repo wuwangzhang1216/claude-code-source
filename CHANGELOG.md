@@ -2,6 +2,32 @@
 
 All notable changes tracked here. This is a local/educational source mirror of Claude Code, not an official release stream.
 
+## 2.1.140 — May 12, 2026
+
+Folds the user-facing, tractable subset of upstream `2.1.140`. Pulls one self-correction onto my 2.1.139 symlink-watch change (upstream reported a regression there) plus a handful of small fixes; the rest is host-process / `/goal` / Windows-specific.
+
+### Applied in this local source tree
+
+- **Agent tool `subagent_type` resolves case- and separator-insensitively** — added `normalizeAgentType()` (lowercase + collapse runs of `[\s_-]` to `-`) and `findAgentByType()` so values like `"Code Reviewer"` or `"code_reviewer"` resolve to the canonical `code-reviewer`. When the caller passes a non-canonical form, `subagent_type` is rewritten to the canonical id before downstream lookups (permission rules, color cache, telemetry) so logs and rule matches stay consistent (`src/tools/AgentTool/AgentTool.tsx`).
+- **`Read` tool `offset` (and other `semanticNumber` fields) accept whitespace-padded and `+`-prefixed numeric strings** — `semanticNumber()`'s coercion regex widened from `/^-?\d+(\.\d+)?$/` to `/^\s*[+-]?\d+(\.\d+)?\s*$/`, and the coerced value is `Number(v.trim())`. Models that emit `" 30"`, `"+30"`, or `"+30 "` no longer hit "Invalid input" against an inner `z.number()` (`src/utils/semanticNumber.ts`).
+- **Settings hot-reload self-correction on symlinks** — fixes the regression my 2.1.139 symlink change introduced. When `~/.claude/settings.json` is a symlink, chokidar fires for both the symlink path (via the main watched dir) and the realpath (via the explicitly-watched target dir), and `getSourceForPath` correctly maps both to the same source — but the ConfigChange hook then fired twice. Added a `recentSourceFireAt` map with a `FILE_STABILITY_THRESHOLD_MS`-wide dedupe window so near-simultaneous fires for the same source collapse to one notification (`src/utils/settings/changeDetector.ts`).
+- **Plugins warn when a default component folder is silently ignored by a manifest key** — `pluginLoader` now `pathExists()`-checks `commands/`, `agents/`, `skills/`, and `output-styles/` unconditionally, and emits both a `level: 'warn'` debug log and a new `default-folder-shadowed` `PluginError` entry whenever the manifest declares the matching key AND the default sibling folder exists. Surfaces in `/doctor`, `claude plugin list`, and any other consumer of `plugins.errors`. New error type added to `PluginError` discriminated union (`src/types/plugin.ts`, `src/utils/plugins/pluginLoader.ts`).
+- **Remote managed settings retry once with a force-refreshed token on 401** — `fetchRemoteManagedSettings` now takes a `hasForceRefreshedToken` flag (defaults to `false`). When a 401 arrives and the flag is `false`, we call `clearOAuthTokenCache()` and recursively re-invoke the fetch once with the flag set. A subsequent 401 (or 403 in any case) still bails out with `skipRetry: true`. Handles the case where the server rotates auth and our cached token is no longer accepted even though `checkAndRefreshOAuthTokenIfNeeded` didn't think it was near expiry (`src/services/remoteManagedSettings/index.ts`).
+- **Bumped local source version to `2.1.140`** (from `2.1.139`) — `package.json` and `preload.ts` MACRO.
+
+### Not applied (upstream-only or out of scope)
+
+- **`/goal` silently hanging when `disableAllHooks` / `allowManagedHooksOnly` is set** — `/goal` is a new top-level command in upstream `2.1.139` that this mirror does not implement. Nothing to fix.
+- **Updated agent color palette** — applied as a cosmetic UI const update upstream. Without the exact new color set in front of me I'd be guessing, so the existing palette stays (`src/tools/AgentTool/agentColorManager.ts`). Safe to revisit if a future upstream changelog quotes the colors.
+- **`claude --bg` "connection dropped mid-request" when the background service is about to idle-exit** — the `--bg` background-service mode is not reproduced in this CLI mirror.
+- **Background service startup failing on machines with enterprise endpoint security (allow more time)** — same; the host startup timeout doesn't apply here.
+- **Managed `extraKnownMarketplaces` auto-update policy not being persisted to `known_marketplaces.json`** — managed-policy write path is in obfuscated marketplace sync code; defer until I can audit the persistence chain.
+- **`/loop` scheduling redundant wakeups to poll for background tasks that already notify on completion** — `/loop` lives as a skill (`src/skills/bundled/loop.ts`) and delegates to `CronCreate`; the redundant-polling layer that the changelog cites isn't reproduced in this mirror.
+- **Windows event-loop stall when a missing executable (e.g. `gh`) triggers synchronous `where.exe` re-spawns on every check** — Windows-only; the lookup path here uses a different code branch and isn't measurably affected.
+- **Native terminal cursor not staying at the input caret when the terminal loses focus** — Ink/terminal rendering only.
+
+---
+
 ## 2.1.139 — May 11, 2026
 
 Folds the user-facing, tractable subset of upstream `2.1.139`. New top-level commands (`/goal`, `/scroll-speed`, `claude agents`, `claude plugin details`) and the bulk of the Ink/UI rendering fixes (cursor blink, transcript shortcuts, scroll behavior, CJK/emoji width, ProgressBar, hyperlink theme contrast, multi-image paste, mouse-wheel scrolling) need infrastructure this mirror doesn't reproduce and stayed unapplied.

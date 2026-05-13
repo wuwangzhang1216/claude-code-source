@@ -18,6 +18,7 @@ import { open, unlink } from 'fs/promises'
 import { getOauthConfig, OAUTH_BETA_HEADER } from '../../constants/oauth.js'
 import {
   checkAndRefreshOAuthTokenIfNeeded,
+  clearOAuthTokenCache,
   getAnthropicApiKeyWithSource,
   getClaudeAIOAuthTokens,
 } from '../../utils/auth.js'
@@ -247,6 +248,7 @@ async function fetchWithRetry(
  */
 async function fetchRemoteManagedSettings(
   cachedChecksum?: string,
+  hasForceRefreshedToken = false,
 ): Promise<RemoteManagedSettingsFetchResult> {
   try {
     // Ensure OAuth token is fresh before fetching settings
@@ -344,6 +346,19 @@ async function fetchRemoteManagedSettings(
     }
     switch (kind) {
       case 'auth':
+        // A 401 with a cached OAuth token may just mean the cache is stale
+        // — `checkAndRefreshOAuthTokenIfNeeded` only refreshes near expiry,
+        // so a server-side rotation can leave us holding a token the server
+        // already rejected. Force-refresh once and retry the fetch before
+        // giving up; 403 (and any second-attempt 401) still surfaces as a
+        // non-retryable auth failure.
+        if (status === 401 && !hasForceRefreshedToken) {
+          logForDebugging(
+            'Remote settings: 401 received, force-refreshing OAuth token and retrying once',
+          )
+          clearOAuthTokenCache()
+          return fetchRemoteManagedSettings(cachedChecksum, true)
+        }
         // Auth errors (401, 403) should not be retried - the API key doesn't have access
         return {
           success: false,

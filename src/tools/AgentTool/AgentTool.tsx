@@ -279,6 +279,33 @@ export const AgentTool = buildTool({
       throw new Error('In-process teammates cannot spawn background agents. Use run_in_background=false for synchronous subagents.');
     }
 
+    // Normalize a subagent_type for case- and separator-insensitive lookup
+    // (e.g. "Code Reviewer" or "code_reviewer" both resolve to "code-reviewer").
+    const normalizeAgentType = (s: string): string =>
+      s.trim().toLowerCase().replace(/[\s_-]+/g, '-');
+    const findAgentByType = (
+      agents: readonly { agentType: string }[],
+      type: string,
+    ): typeof agents[number] | undefined => {
+      const exact = agents.find(a => a.agentType === type);
+      if (exact) return exact;
+      const target = normalizeAgentType(type);
+      return agents.find(a => normalizeAgentType(a.agentType) === target);
+    };
+
+    // If the caller supplied a non-canonical form, swap it for the canonical
+    // agentType so downstream lookups (permission rules, color cache, logs)
+    // see one consistent identifier.
+    if (subagent_type) {
+      const resolved = findAgentByType(
+        toolUseContext.options.agentDefinitions.activeAgents,
+        subagent_type,
+      );
+      if (resolved && resolved.agentType !== subagent_type) {
+        subagent_type = resolved.agentType;
+      }
+    }
+
     // Check if this is a multi-agent spawn request
     // Spawn is triggered when team_name is set (from param or context) and name is provided
     if (teamName && name) {

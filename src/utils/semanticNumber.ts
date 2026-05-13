@@ -9,8 +9,10 @@ import { z } from 'zod/v4'
  * accepts values like "" or null by converting them via JS Number(), masking
  * bugs rather than surfacing them.
  *
- * Only strings that are valid decimal number literals (matching /^-?\d+(\.\d+)?$/)
- * are coerced. Anything else passes through and is rejected by the inner schema.
+ * Only strings that are valid decimal number literals (matching
+ * /^\s*[+-]?\d+(\.\d+)?\s*$/) are coerced — including a leading `+` sign and
+ * surrounding whitespace, both of which the model occasionally emits.
+ * Anything else passes through and is rejected by the inner schema.
  *
  * z.preprocess emits {"type":"number"} to the API schema, so the model is
  * still told this is a number — the string tolerance is invisible client-side
@@ -27,8 +29,8 @@ export function semanticNumber<T extends z.ZodType>(
   inner: T = z.number() as unknown as T,
 ) {
   return z.preprocess((v: unknown) => {
-    if (typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v)) {
-      const n = Number(v)
+    if (typeof v === 'string' && /^\s*[+-]?\d+(\.\d+)?\s*$/.test(v)) {
+      const n = Number(v.trim())
       if (Number.isFinite(n)) return n
     }
     return v

@@ -270,6 +270,17 @@ export type PluginError =
       reason: 'not-enabled' | 'not-found'
     }
   | {
+      // Manifest declares an explicit value for a component key (e.g.
+      // `commands`), and the default sibling folder of the same name also
+      // exists in the plugin tree. The default folder is silently ignored
+      // in favor of the manifest declaration — warn so authors notice.
+      type: 'default-folder-shadowed'
+      source: string
+      plugin: string
+      component: PluginComponent
+      defaultPath: string
+    }
+  | {
       type: 'plugin-cache-miss'
       source: string
       plugin: string

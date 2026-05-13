@@ -73,6 +73,14 @@ const settingsChanged = createSignal<[source: SettingSource]>()
 // edits applied to the target (where the editor actually writes) still route
 // to the correct SettingSource.
 let symlinkTargetToSource: Map<string, SettingSource> = new Map()
+// Per-source dedupe window. When a settings file is symlinked, chokidar fires
+// both for the symlink path (via the main watched dir, following symlinks)
+// AND for the realpath (via the explicitly watched target dir). Without
+// dedupe, a single edit drives the ConfigChange hook twice. Window matches
+// chokidar's awaitWriteFinish stability threshold so duplicates from the
+// same write all collapse to a single notification.
+const SYMLINK_DEDUPE_WINDOW_MS = FILE_STABILITY_THRESHOLD_MS
+const recentSourceFireAt = new Map<SettingSource, number>()
 
 // Test overrides for timing constants
 let testOverrides: {
@@ -167,6 +175,7 @@ export function dispose(): Promise<void> {
   clearInternalWrites()
   settingsChanged.clear()
   symlinkTargetToSource = new Map()
+  recentSourceFireAt.clear()
   const w = watcher
   watcher = null
   return w ? w.close() : Promise.resolve()
@@ -313,6 +322,25 @@ function handleChange(path: string): void {
   if (consumeInternalWrite(path, INTERNAL_WRITE_WINDOW_MS)) {
     return
   }
+
+  // Symlinked settings files can fan out into two filesystem events for the
+  // same logical edit: one on the symlink path (chokidar follows symlinks by
+  // default on the main watched dir) and one on the realpath (we explicitly
+  // watch the target dir in getWatchTargets). Both map to the same source
+  // via symlinkTargetToSource, so collapse near-simultaneous fires for the
+  // same source to avoid double-firing ConfigChange hooks.
+  const now = Date.now()
+  const previousFireAt = recentSourceFireAt.get(source)
+  if (
+    previousFireAt !== undefined &&
+    now - previousFireAt < SYMLINK_DEDUPE_WINDOW_MS
+  ) {
+    logForDebugging(
+      `Suppressing duplicate change for ${source} (alias path ${path})`,
+    )
+    return
+  }
+  recentSourceFireAt.set(source, now)
 
   logForDebugging(`Detected change to ${path}`)
 

@@ -1370,20 +1370,72 @@ export async function createPluginFromPath(
     enabled, // Current enabled state
   }
 
-  // Step 3: Auto-detect optional directories in parallel
+  // Step 3: Auto-detect optional directories in parallel.
+  // We check the default folders unconditionally so we can warn when the
+  // manifest declares the matching key AND the default sibling exists —
+  // otherwise the default folder is silently dropped and authors are left
+  // wondering why their `commands/` directory has no effect.
   const [
-    commandsDirExists,
-    agentsDirExists,
-    skillsDirExists,
-    outputStylesDirExists,
+    commandsDefaultExists,
+    agentsDefaultExists,
+    skillsDefaultExists,
+    outputStylesDefaultExists,
   ] = await Promise.all([
-    !manifest.commands ? pathExists(join(pluginPath, 'commands')) : false,
-    !manifest.agents ? pathExists(join(pluginPath, 'agents')) : false,
-    !manifest.skills ? pathExists(join(pluginPath, 'skills')) : false,
-    !manifest.outputStyles
-      ? pathExists(join(pluginPath, 'output-styles'))
-      : false,
+    pathExists(join(pluginPath, 'commands')),
+    pathExists(join(pluginPath, 'agents')),
+    pathExists(join(pluginPath, 'skills')),
+    pathExists(join(pluginPath, 'output-styles')),
   ])
+  const commandsDirExists = !manifest.commands && commandsDefaultExists
+  const agentsDirExists = !manifest.agents && agentsDefaultExists
+  const skillsDirExists = !manifest.skills && skillsDefaultExists
+  const outputStylesDirExists =
+    !manifest.outputStyles && outputStylesDefaultExists
+
+  // Emit a one-line warning for each default folder that the manifest key
+  // is hiding. Goes into the plugin error list so /doctor and
+  // `claude plugin list` surface it.
+  const shadowedDefaults: Array<{
+    component: PluginComponent
+    defaultPath: string
+  }> = []
+  if (manifest.commands && commandsDefaultExists) {
+    shadowedDefaults.push({
+      component: 'commands',
+      defaultPath: join(pluginPath, 'commands'),
+    })
+  }
+  if (manifest.agents && agentsDefaultExists) {
+    shadowedDefaults.push({
+      component: 'agents',
+      defaultPath: join(pluginPath, 'agents'),
+    })
+  }
+  if (manifest.skills && skillsDefaultExists) {
+    shadowedDefaults.push({
+      component: 'skills',
+      defaultPath: join(pluginPath, 'skills'),
+    })
+  }
+  if (manifest.outputStyles && outputStylesDefaultExists) {
+    shadowedDefaults.push({
+      component: 'output-styles',
+      defaultPath: join(pluginPath, 'output-styles'),
+    })
+  }
+  for (const shadow of shadowedDefaults) {
+    logForDebugging(
+      `Plugin ${manifest.name}: default ${shadow.component} folder at ${shadow.defaultPath} is being ignored because manifest declares "${shadow.component}" — remove the manifest key or rename the folder to silence this warning.`,
+      { level: 'warn' },
+    )
+    errors.push({
+      type: 'default-folder-shadowed',
+      source,
+      plugin: manifest.name,
+      component: shadow.component,
+      defaultPath: shadow.defaultPath,
+    })
+  }
 
   const commandsPath = join(pluginPath, 'commands')
   if (commandsDirExists) {
