@@ -32,6 +32,7 @@ function applySingleMotion(key: string, cursor: Cursor): Cursor {
     case 'h':
       return cursor.left()
     case 'l':
+    case ' ': // Upstream 2.1.128: Space in NORMAL moves cursor right
       return cursor.right()
     case 'j':
       return cursor.downLogicalLine()

@@ -31,15 +31,29 @@ export async function call(
     return null
   }
 
-  if (!args || args.trim() === '') {
-    const colorList = AGENT_COLORS.join(', ')
-    onDone(`Please provide a color. Available colors: ${colorList}, default`, {
-      display: 'system',
-    })
+  // Upstream 2.1.128: bare `/color` (no args) picks a random session color.
+  // Skip the current color so reroll always actually changes something.
+  const trimmedArgs = args?.trim() ?? ''
+  if (trimmedArgs === '') {
+    const currentColor = context.getAppState().standaloneAgentContext?.color
+    const pool = AGENT_COLORS.filter(c => c !== currentColor)
+    const randomColor = pool[Math.floor(Math.random() * pool.length)]!
+    const sessionId = getSessionId() as UUID
+    const fullPath = getTranscriptPath()
+    await saveAgentColor(sessionId, randomColor, fullPath)
+    context.setAppState(prev => ({
+      ...prev,
+      standaloneAgentContext: {
+        ...prev.standaloneAgentContext,
+        name: prev.standaloneAgentContext?.name ?? '',
+        color: randomColor,
+      },
+    }))
+    onDone(`Session color set to: ${randomColor}`, { display: 'system' })
     return null
   }
 
-  const colorArg = args.trim().toLowerCase()
+  const colorArg = trimmedArgs.toLowerCase()
 
   // Handle reset to default (gray)
   if (RESET_ALIASES.includes(colorArg as (typeof RESET_ALIASES)[number])) {

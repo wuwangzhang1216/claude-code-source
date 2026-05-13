@@ -76,6 +76,25 @@ export function registerUpstreamProxyEnvFn(
   _getUpstreamProxyEnv = fn
 }
 
+/**
+ * Upstream 2.1.128: subprocesses (Bash, hooks, MCP, LSP) must not inherit
+ * the CLI's OTEL_* configuration. Otherwise OTEL-instrumented apps invoked
+ * via Bash would pick up the CLI's OTLP endpoint, sample rate, service name,
+ * etc. — flooding the Claude Code session telemetry with the child app's
+ * spans and silently cross-tenanting export endpoints.
+ *
+ * Strip every OTEL_* variable unconditionally (not gated on
+ * CLAUDE_CODE_SUBPROCESS_ENV_SCRUB) since this is about isolating the
+ * child app's telemetry, not about secret hygiene.
+ */
+function stripOtelVars(env: NodeJS.ProcessEnv): void {
+  for (const key of Object.keys(env)) {
+    if (key.startsWith('OTEL_')) {
+      delete env[key]
+    }
+  }
+}
+
 export function subprocessEnv(): NodeJS.ProcessEnv {
   // CCR upstreamproxy: inject HTTPS_PROXY + CA bundle vars so curl/gh/python
   // in agent subprocesses route through the local relay. Returns {} when the
@@ -96,6 +115,7 @@ export function subprocessEnv(): NodeJS.ProcessEnv {
 
   if (!isEnvTruthy(process.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB)) {
     const merged = { ...process.env, ...proxyEnv, ...agentAttribution }
+    stripOtelVars(merged)
     return merged
   }
   const env = { ...process.env, ...proxyEnv, ...agentAttribution }
@@ -105,5 +125,6 @@ export function subprocessEnv(): NodeJS.ProcessEnv {
     // secrets like INPUT_ANTHROPIC_API_KEY. No-op for vars that aren't action inputs.
     delete env[`INPUT_${k}`]
   }
+  stripOtelVars(env)
   return env
 }

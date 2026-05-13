@@ -47,6 +47,49 @@ export function findFirstMatch(
   return profiles.find(p => p.includes(substring)) ?? null
 }
 
+/**
+ * Upstream 2.1.128: when listing Bedrock inference profiles returns both
+ * a `global.anthropic.<model>` profile and a region-prefixed one (e.g.
+ * `eu.anthropic.<model>`), the latter is what the client actually wants
+ * — `global.*` routes through whichever region AWS picks and can cross
+ * regulatory boundaries. Previously findFirstMatch returned the first
+ * substring match, which on many accounts is `global.*` simply because
+ * AWS lists it first.
+ *
+ * Map AWS_REGION to the matching profile prefix (us-* → us, eu-* → eu,
+ * ap-* → apac) and prefer that match; only fall back to other matches
+ * (including `global.*`) if no region-appropriate profile exists.
+ */
+function regionPrefixFromAWSRegion(): BedrockRegionPrefix | undefined {
+  const region = getAWSRegion()
+  if (region.startsWith('us-') || region.startsWith('us-gov-')) return 'us'
+  if (region.startsWith('eu-')) return 'eu'
+  if (region.startsWith('ap-')) return 'apac'
+  return undefined
+}
+
+export function findBestMatch(
+  profiles: string[],
+  substring: string,
+): string | null {
+  const matches = profiles.filter(p => p.includes(substring))
+  if (matches.length === 0) return null
+  if (matches.length === 1) return matches[0]!
+  const preferred = regionPrefixFromAWSRegion()
+  if (preferred) {
+    const regional = matches.find(p =>
+      p.startsWith(`${preferred}.anthropic.`),
+    )
+    if (regional) return regional
+  }
+  // No region preference or no regional match — fall back to any
+  // non-global match before `global.*` so we still avoid the
+  // cross-region default when the client has e.g. only `us.*` and
+  // `global.*` available in an unrecognised region.
+  const nonGlobal = matches.find(p => !p.startsWith('global.anthropic.'))
+  return nonGlobal ?? matches[0]!
+}
+
 async function createBedrockClient() {
   const { BedrockClient } = await import('@aws-sdk/client-bedrock')
   // Match the Anthropic Bedrock SDK's region behavior exactly:

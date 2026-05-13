@@ -5,7 +5,7 @@ import {
 import { logError } from '../log.js'
 import { sequential } from '../sequential.js'
 import { getInitialSettings } from '../settings/settings.js'
-import { findFirstMatch, getBedrockInferenceProfiles } from './bedrock.js'
+import { findBestMatch, getBedrockInferenceProfiles } from './bedrock.js'
 import {
   ALL_MODEL_CONFIGS,
   CANONICAL_ID_TO_KEY,
@@ -46,10 +46,15 @@ async function getBedrockModelStrings(): Promise<ModelStrings> {
   // user's inference profile list (e.g. "claude-opus-4-6" matches
   // "eu.anthropic.claude-opus-4-6-v1"). Fall back to the hardcoded bedrock ID
   // when no matching profile is found.
+  //
+  // Upstream 2.1.128: prefer the profile whose region prefix matches the
+  // configured AWS_REGION over a `global.anthropic.*` profile that AWS often
+  // lists first. The old behavior surfaced cross-region routing as the
+  // default, occasionally tripping accounts that need EU/APAC residency.
   const out = {} as ModelStrings
   for (const key of MODEL_KEYS) {
     const needle = ALL_MODEL_CONFIGS[key].firstParty
-    out[key] = findFirstMatch(profiles, needle) || fallback[key]
+    out[key] = findBestMatch(profiles, needle) || fallback[key]
   }
   return out
 }

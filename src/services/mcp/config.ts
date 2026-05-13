@@ -193,6 +193,20 @@ export function unwrapCcrProxyUrl(url: string): string {
 }
 
 /**
+ * Upstream 2.1.128: server names that Claude Code reserves for its own
+ * built-in servers. Currently just "workspace". Two enforcement points:
+ *   - addMcpConfig() rejects an attempt to create one of these.
+ *   - getClaudeCodeMcpConfigs() skips any already-persisted entry with a
+ *     warning, so a stale settings.json doesn't shadow the built-in.
+ * Case-insensitive to match the friendlier reserved-name UX users expect.
+ */
+const RESERVED_MCP_SERVER_NAMES: ReadonlySet<string> = new Set(['workspace'])
+
+export function isReservedMcpServerName(name: string): boolean {
+  return RESERVED_MCP_SERVER_NAMES.has(name.toLowerCase())
+}
+
+/**
  * Compute a dedup signature for an MCP server config.
  * Two configs with the same signature are considered "the same server" for
  * plugin deduplication. Ignores env (plugins always inject CLAUDE_PLUGIN_ROOT)
@@ -642,6 +656,14 @@ export async function addMcpConfig(
 
   // Block reserved server name "claude-in-chrome"
   if (isClaudeInChromeMCPServer(name)) {
+    throw new Error(`Cannot add MCP server "${name}": this name is reserved.`)
+  }
+
+  // Upstream 2.1.128: "workspace" is reserved for the built-in workspace
+  // server that ships with the CLI. User-added servers with this name would
+  // shadow it; reject at add time and (see getClaudeCodeMcpConfigs) skip any
+  // such entries that already exist in settings, with a warning.
+  if (isReservedMcpServerName(name)) {
     throw new Error(`Cannot add MCP server "${name}": this name is reserved.`)
   }
 
@@ -1244,11 +1266,24 @@ export async function getClaudeCodeMcpConfigs(
     localServers,
   )
 
-  // Apply policy filtering to merged configs
+  // Apply policy filtering to merged configs.
+  // Upstream 2.1.128: also skip any user-config entry that uses a reserved
+  // built-in server name (currently "workspace"). Add-time validation
+  // already rejects these, but settings.json may have been written before
+  // the reservation existed — surface a warning so the user knows to rename
+  // their entry rather than silently colliding with the built-in.
   const filtered: Record<string, ScopedMcpServerConfig> = {}
 
   for (const [name, serverConfig] of Object.entries(configs)) {
     if (!isMcpServerAllowedByPolicy(name, serverConfig as McpServerConfig)) {
+      continue
+    }
+    if (isReservedMcpServerName(name)) {
+      logError(
+        new Error(
+          `Skipping MCP server "${name}": this name is reserved by Claude Code. Rename your entry in settings.json to use the server again.`,
+        ),
+      )
       continue
     }
     filtered[name] = serverConfig as ScopedMcpServerConfig

@@ -289,11 +289,19 @@ export function buildClassifierUnavailableMessage(
   toolName: string,
   classifierModel: string,
 ): string {
+  // Upstream 2.1.128: when the classifier can't evaluate an action, give
+  // the agent (and any human watching) concrete next steps instead of the
+  // bare "temporarily unavailable" line. The three suggestions are in the
+  // order a user would naturally try them: retry the same action, /compact
+  // the transcript to shrink classifier context, or re-launch with --debug
+  // to capture the failure for a bug report.
   return (
     `${classifierModel} is temporarily unavailable, so auto mode cannot determine the safety of ${toolName} right now. ` +
     `Wait briefly and then try this action again. ` +
     `If it keeps failing, continue with other tasks that don't require this action and come back to it later. ` +
-    `Note: reading files, searching code, and other read-only operations do not require the classifier and can still be used.`
+    `Note: reading files, searching code, and other read-only operations do not require the classifier and can still be used.\n\n` +
+    `If the issue persists, try one of: retry the action, run /compact to shrink the classifier transcript, ` +
+    `or restart Claude Code with --debug to capture the failure.`
   )
 }
 

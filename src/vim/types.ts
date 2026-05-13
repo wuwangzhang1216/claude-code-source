@@ -135,6 +135,7 @@ export function isOperatorKey(key: string): key is keyof typeof OPERATORS {
 export const SIMPLE_MOTIONS = new Set([
   'h',
   'l',
+  ' ', // Upstream 2.1.128: Space in NORMAL is `l` (move right) per vi/vim
   'j',
   'k', // Basic movement
   'w',

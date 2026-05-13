@@ -2,6 +2,35 @@
 
 All notable changes tracked here. This is a local/educational source mirror of Claude Code, not an official release stream.
 
+## 2.1.128 — May 4, 2026
+
+Folds the user-facing, tractable subset of upstream `2.1.128` (2.1.127 was a one-line hotfix that doesn't reproduce here).
+
+### Applied in this local source tree
+
+- **Bare `/color` picks a random session color** — instead of printing the available-colors list, an empty `/color` now rerolls. Pool excludes the current color so the reroll always actually changes something; persists via `saveAgentColor` like an explicit pick (`src/commands/color/color.ts`).
+- **Subprocesses no longer inherit `OTEL_*` env vars** — `subprocessEnv()` strips every `OTEL_*` key unconditionally (not gated on `CLAUDE_CODE_SUBPROCESS_ENV_SCRUB`, since this is about telemetry isolation, not secret hygiene). Prevents OTEL-instrumented apps invoked through Bash/MCP/LSP/hooks from picking up the CLI's OTLP endpoint, sample rate, service name, etc. — flooding the user's Claude Code session telemetry with the child app's spans (`src/utils/subprocessEnv.ts`).
+- **MCP: `workspace` is now a reserved server name** — `isReservedMcpServerName()` helper added to `mcp/config.ts`; `addMcpConfig()` rejects an attempt to create a `workspace` server with the same "this name is reserved" error used for `claude-in-chrome` and computer-use. `getClaudeCodeMcpConfigs()` also skips any already-persisted `workspace` entry with a `logError` warning so a stale settings.json doesn't shadow the built-in (`src/services/mcp/config.ts`).
+- **`EnterWorktree` branches from local `HEAD` instead of `origin/<default-branch>`** — the previous behaviour forked from the remote tip, which silently dropped any unpushed commits the user had on top of main and required a fetch round-trip on every new worktree. The non-PR path now uses `HEAD` directly; the PR-fetch path still uses `FETCH_HEAD`. Dropped the now-unused `getDefaultBranch` / `resolveRef` imports from this file (`src/utils/worktree.ts`).
+- **Auto mode classifier "unavailable" message includes actionable next steps** — `buildClassifierUnavailableMessage()` appends a trailing line suggesting retry / `/compact` / `--debug`, the three things users would naturally try in order (retry first, shrink the classifier transcript if it persists, capture a debug log if it still fails). The existing "wait briefly" guidance stays since some failures are transient backend issues (`src/utils/messages.ts`).
+- **Bedrock default model: prefer the region-appropriate prefix over `global.anthropic.*`** — `getBedrockInferenceProfiles()` often returns `global.anthropic.<model>` before any regional alternative, and the old `findFirstMatch` substring search picked whichever came first. Added `findBestMatch(profiles, needle)` that maps `AWS_REGION` to its prefix (`us-*` → `us`, `eu-*` → `eu`, `ap-*` → `apac`) and prefers a profile with that prefix, falling back to any non-`global.*` match before `global.*`. `getBedrockModelStrings()` now uses `findBestMatch`. Avoids accidentally cross-region routing for accounts that need EU/APAC residency (`src/utils/model/bedrock.ts`, `src/utils/model/modelStrings.ts`).
+- **vim `<Space>` in NORMAL mode moves cursor right** — matches stock `vi`/`vim` behaviour. Added `' '` alongside `'l'` in `applySingleMotion` and to `SIMPLE_MOTIONS` so it composes with counts and operators (e.g. `5<Space>` moves right five characters, `d<Space>` deletes the character to the right) (`src/vim/types.ts`, `src/vim/motions.ts`).
+- **Bumped local source version to `2.1.128`** (from `2.1.126`) — `package.json` and `preload.ts` MACRO.
+
+### Not applied (upstream-only or out of scope)
+
+- `/model` picker collapsing duplicate Opus 4.7 entries / showing current Opus as "Opus" — the mirror's current Opus is 4.6 and already labelled "Opus" via `getOpus46Option`; there are no Opus 4.7 entries to collapse.
+- `/mcp` showing tool counts and flagging connected-with-0-tools servers — `/mcp` view in obfuscated Ink components.
+- `--plugin-dir` accepting `.zip` plugin archives — plugin loader's directory-walk path is the entry point; zip-extract integration would land in `pluginLoader.ts` but the local mirror's plugin loader does not have the file-vs-archive dispatch hooks the upstream change relies on.
+- `--channels` with console (API key) authentication + `channelsEnabled: true` for managed orgs — channels feature gating lives in auth code paths not surfaced in this mirror.
+- MCP reconnect tool-name flood summarised by server prefix — reconnect/announce path in obfuscated source.
+- SDK hosts receiving a persistent `localSettings` suggestion for Bash permission prompts — SDK permission-prompt plumbing.
+- Auto-mode spinner colour, focus-mode dimming, OSC 9 ("4;0;") stray notification on `/exit`, Remote-Control rate-limit empty message, drag-and-drop image upload hang, long-URL wrapped-row click, `/plugin Components` "Marketplace 'inline' not found", MCP-result image dropping with both structured + content blocks, fenced-code-blocks-in-list-items clipboard whitespace, `/config` tab focus, markdown link `label (url)` rendering on terminals without OSC 8, parallel-shell sibling cancellation, 1M-context autocompact `Prompt is too long`, banner "with X effort" on no-effort models, `/fast` 3P fuzzy-match, OSC 9;4 progress flicker, `/rename` on compact-boundary resume, stale "remote-control is active" status, stale `installed_plugins.json` PATH pollution, `CLAUDE_CODE_SHELL_PREFIX` corrupting MCP stdio args, sub-agent summary cache miss, sub-agent summary idle dedup, headless `stream-json` `init.plugin_errors` from `--plugin-dir` — UI / Ink / channels / native-build / SDK internals not reproduced here.
+- `>10 MB` stdin to `claude -p` crash — stdin buffering in obfuscated CLI bootstrap.
+- `/plugin update` detecting npm-sourced plugin updates — npm update probe path inside obfuscated update logic.
+
+---
+
 ## 2.1.126 — May 1, 2026
 
 Applies the user-facing, tractable subset of the upstream `2.1.126` changelog.
