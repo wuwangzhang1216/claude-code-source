@@ -401,7 +401,12 @@ foreach ($t in $ast.FindAll({ param($n)
 $hasStopParsing = $false
 $tk = [System.Management.Automation.Language.TokenKind]
 foreach ($tok in $tokens) {
-    if ($tok.Kind -eq $tk::MinusMinus) { $hasStopParsing = $true; break }
+    # Upstream 2.1.126: previously also matched [TokenKind]::MinusMinus,
+    # which represents bare '--' (the decrement operator and the
+    # POSIX option-terminator). That mis-flagged commands like
+    # 'git diff -- file' as the stop-parsing token. The real stop-parsing
+    # token '--%' is always lexed as Generic with literal text '--%'
+    # across PS5.1 and PS7 - only that case should set the flag.
     if ($tok.Kind -eq $tk::Generic -and ($tok.Text -replace '[\u2013\u2014\u2015]','-') -eq '--%') {
         $hasStopParsing = $true; break
     }

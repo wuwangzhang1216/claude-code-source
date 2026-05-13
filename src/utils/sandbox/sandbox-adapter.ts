@@ -41,8 +41,11 @@ import {
   getSettingsFilePathForSource,
   getSettingsForSource,
   getSettingsRootPathForSource,
+  loadManagedFileSettings,
   updateSettingsForSource,
 } from '../settings/settings.js'
+import { getHkcuSettings, getMdmSettings } from '../settings/mdm/settings.js'
+import { getRemoteManagedSettingsSyncFromCache } from '../../services/remoteManagedSettings/syncCacheState.js'
 import type { SettingsJson } from '../settings/types.js'
 
 // ============================================================================
@@ -146,20 +149,49 @@ export function resolveSandboxFilesystemPath(
 }
 
 /**
+ * Upstream 2.1.126 (security): the policySettings merge uses "first source
+ * wins" — if remote managed settings exists (even with only unrelated keys
+ * like `enableAllProjectMcpServers`), it wins overall and the lower-priority
+ * source's `sandbox` block is dropped. That silently disabled
+ * allowManagedDomainsOnly / allowManagedReadPathsOnly for any admin who set
+ * the sandbox lock-down via MDM / managed-settings.json while remote was
+ * also configured for unrelated reasons.
+ *
+ * Fix: for sandbox lock-down flags specifically, scan the managed source
+ * chain (remote → MDM → managed-file → HKCU) and honour the first source
+ * that defines the flag. Non-sandbox fields keep their existing
+ * first-source-wins semantics.
+ */
+function getFirstManagedSandboxBlock(): SettingsJson['sandbox'] | undefined {
+  const candidates: Array<SettingsJson | null | undefined> = [
+    getRemoteManagedSettingsSyncFromCache(),
+    getMdmSettings().settings,
+    loadManagedFileSettings().settings,
+    getHkcuSettings().settings,
+  ]
+  for (const candidate of candidates) {
+    if (candidate && candidate.sandbox) {
+      return candidate.sandbox
+    }
+  }
+  return undefined
+}
+
+/**
  * Check if only managed sandbox domains should be used.
- * This is true when policySettings has sandbox.network.allowManagedDomainsOnly: true
+ * True when any managed source has sandbox.network.allowManagedDomainsOnly: true,
+ * scanned in priority order (remote → MDM → file → HKCU).
  */
 export function shouldAllowManagedSandboxDomainsOnly(): boolean {
   return (
-    getSettingsForSource('policySettings')?.sandbox?.network
-      ?.allowManagedDomainsOnly === true
+    getFirstManagedSandboxBlock()?.network?.allowManagedDomainsOnly === true
   )
 }
 
 function shouldAllowManagedReadPathsOnly(): boolean {
   return (
-    getSettingsForSource('policySettings')?.sandbox?.filesystem
-      ?.allowManagedReadPathsOnly === true
+    getFirstManagedSandboxBlock()?.filesystem?.allowManagedReadPathsOnly ===
+    true
   )
 }
 

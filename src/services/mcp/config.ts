@@ -281,6 +281,12 @@ export function dedupPluginMcpServers(
 export function dedupClaudeAiMcpServers(
   claudeAiServers: Record<string, ScopedMcpServerConfig>,
   manualServers: Record<string, ScopedMcpServerConfig>,
+  // Upstream 2.1.126: manual servers stuck in 'needs-auth' (e.g. cached
+  // 401 from a stale token) shouldn't suppress the claude.ai connector
+  // twin. Otherwise the user is left with neither client connected, just
+  // a needs-auth prompt for a server they already abandoned. Pass the
+  // set of needs-auth names so dedup treats them like disabled.
+  needsAuthManualNames: ReadonlySet<string> = new Set(),
 ): {
   servers: Record<string, ScopedMcpServerConfig>
   suppressed: Array<{ name: string; duplicateOf: string }>
@@ -288,6 +294,7 @@ export function dedupClaudeAiMcpServers(
   const manualSigs = new Map<string, string>()
   for (const [name, config] of Object.entries(manualServers)) {
     if (isMcpServerDisabled(name)) continue
+    if (needsAuthManualNames.has(name)) continue
     const sig = getMcpServerSignature(config)
     if (sig && !manualSigs.has(sig)) manualSigs.set(sig, name)
   }

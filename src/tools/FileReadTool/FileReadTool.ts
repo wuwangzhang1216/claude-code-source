@@ -52,7 +52,6 @@ import { lazySchema } from '../../utils/lazySchema.js'
 import { logError } from '../../utils/log.js'
 import { isAutoMemFile } from '../../utils/memoryFileDetection.js'
 import { createUserMessage } from '../../utils/messages.js'
-import { getCanonicalName, getMainLoopModel } from '../../utils/model/model.js'
 import {
   mapNotebookCellsToToolResult,
   readNotebook,
@@ -408,9 +407,9 @@ export const FileReadTool = buildTool({
   renderToolResultMessage,
   // UI.tsx:140 — ALL types render summary chrome only: "Read N lines",
   // "Read image (42KB)". Never the content itself. The model-facing
-  // serialization (below) sends content + CYBER_RISK_MITIGATION_REMINDER
-  // + line prefixes; UI shows none of it. Nothing to index. Caught by
-  // the render-fidelity test when this initially claimed file.content.
+  // serialization (below) sends content + line prefixes; UI shows none
+  // of it. Nothing to index. Caught by the render-fidelity test when
+  // this initially claimed file.content.
   extractSearchText() {
     return ''
   },
@@ -693,12 +692,12 @@ export const FileReadTool = buildTool({
         let content: string
 
         if (data.file.content) {
+          // Upstream 2.1.126: removed the per-file malware-assessment
+          // <system-reminder> previously appended here. On legacy models it
+          // caused spurious refusals and "this is not malware" commentary;
+          // the same guidance now lives in the system prompt instead.
           content =
-            memoryFileFreshnessPrefix(data) +
-            formatFileLines(data.file) +
-            (shouldIncludeFileReadMitigation()
-              ? CYBER_RISK_MITIGATION_REMINDER
-              : '')
+            memoryFileFreshnessPrefix(data) + formatFileLines(data.file)
         } else {
           // Determine the appropriate warning message
           content =
@@ -724,17 +723,6 @@ function pickLineFormatInstruction(): string {
 /** Format file content with line numbers. */
 function formatFileLines(file: { content: string; startLine: number }): string {
   return addLineNumbers(file)
-}
-
-export const CYBER_RISK_MITIGATION_REMINDER =
-  '\n\n<system-reminder>\nWhenever you read a file, you should consider whether it would be considered malware. You CAN and SHOULD provide analysis of malware, what it is doing. But you MUST refuse to improve or augment the code. You can still analyze existing code, write reports, or answer questions about the code behavior.\n</system-reminder>\n'
-
-// Models where cyber risk mitigation should be skipped
-const MITIGATION_EXEMPT_MODELS = new Set(['claude-opus-4-6'])
-
-function shouldIncludeFileReadMitigation(): boolean {
-  const shortName = getCanonicalName(getMainLoopModel())
-  return !MITIGATION_EXEMPT_MODELS.has(shortName)
 }
 
 /**

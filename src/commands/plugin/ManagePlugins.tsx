@@ -1109,10 +1109,16 @@ export function ManagePlugins({
       // 'enable'`: install enables on install, so the menu shows "Disable"
       // first. PluginOptionsFlow itself checks getUnconfiguredOptions — if
       // nothing needs filling, it calls onDone('skipped') immediately.
+      //
+      // Upstream 2.1.126: skip the diversion on uninstall. After uninstall,
+      // enabledPlugins[id] is removed (undefined), and `undefined !== false`
+      // returns true — so we'd hand off to PluginOptionsFlow, whose 'skipped'
+      // outcome reports "✓ Enabled <plugin>", which is what users actually
+      // saw instead of "✓ Uninstalled". Update doesn't reconfigure either.
       const pluginIdNow = `${selectedPlugin.plugin.name}@${selectedPlugin.marketplace}`;
       const settingsAfter = getSettings_DEPRECATED();
       const enabledAfter = settingsAfter?.enabledPlugins?.[pluginIdNow] !== false;
-      if (enabledAfter) {
+      if (enabledAfter && operation !== 'uninstall' && operation !== 'update') {
         setIsProcessing(false);
         setViewState({
           type: 'plugin-options'

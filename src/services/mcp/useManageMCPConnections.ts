@@ -912,10 +912,26 @@ export function useManageMCPConnections(
         // Suppress claude.ai connectors that duplicate an enabled manual server.
         // Keys never collide (`slack` vs `claude.ai Slack`) so the merge below
         // won't catch this — need content-based dedup by URL signature.
+        //
+        // Upstream 2.1.126: also pass the set of manual servers currently
+        // stuck in needs-auth. Without this, a manual server with a stale
+        // 401 (e.g. expired token) would still suppress its claude.ai
+        // twin — leaving the user with neither connected, just an
+        // unactionable needs-auth prompt.
         if (Object.keys(claudeaiConfigs).length > 0) {
+          let needsAuthNames: ReadonlySet<string> = new Set()
+          setAppState(prevState => {
+            needsAuthNames = new Set(
+              prevState.mcp.clients
+                .filter(c => c.type === 'needs-auth')
+                .map(c => c.name),
+            )
+            return prevState
+          })
           const { servers: dedupedClaudeAi } = dedupClaudeAiMcpServers(
             claudeaiConfigs,
             configs,
+            needsAuthNames,
           )
           claudeaiConfigs = dedupedClaudeAi
         }

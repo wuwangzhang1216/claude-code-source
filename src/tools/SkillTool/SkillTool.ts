@@ -33,6 +33,8 @@ import {
   parsePluginIdentifier,
 } from 'src/utils/plugins/pluginIdentifier.js'
 import { buildPluginCommandTelemetryFields } from 'src/utils/telemetry/pluginTelemetry.js'
+import { logOTelEvent } from 'src/utils/telemetry/events.js'
+import { isToolDetailsLoggingEnabled } from 'src/services/analytics/metadata.js'
 import { z } from 'zod/v4'
 import {
   addInvokedSkill,
@@ -200,6 +202,23 @@ async function executeForkedSkill(
         : 'third-party') as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
       ...buildPluginCommandTelemetryFields(command.pluginInfo),
     }),
+  })
+
+  // Upstream 2.1.126: claude_code.skill_activated OTel event fires for every
+  // skill activation so OTLP consumers can correlate triggers across user
+  // slash commands and Claude-driven invocations. invocation_trigger
+  // distinguishes 'claude-proactive' (top-level SkillTool call) from
+  // 'nested-skill' (a skill invoking another). Keep the payload to
+  // safe-cardinality attributes — names go through the same
+  // OTEL_LOG_TOOL_DETAILS redaction gate as user_prompt.
+  void logOTelEvent('skill_activated', {
+    invocation_trigger: queryDepth > 0 ? 'nested-skill' : 'claude-proactive',
+    execution_context: 'fork',
+    query_depth: queryDepth,
+    command_name: isToolDetailsLoggingEnabled()
+      ? commandName
+      : forkedSanitizedName,
+    command_source: command.loadedFrom ?? 'unknown',
   })
 
   const { modifiedGetAppState, baseAgent, promptMessages, skillContent } =

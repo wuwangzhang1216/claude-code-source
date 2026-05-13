@@ -2,6 +2,48 @@
 
 All notable changes tracked here. This is a local/educational source mirror of Claude Code, not an official release stream.
 
+## 2.1.126 — May 1, 2026
+
+Applies the user-facing, tractable subset of the upstream `2.1.126` changelog.
+
+### Applied in this local source tree
+
+- **OTEL `claude_code.skill_activated` event** — fires for every skill activation site and carries an `invocation_trigger` attribute (`'user-slash'`, `'claude-proactive'`, or `'nested-skill'`). Emitted alongside the existing BQ events:
+  - `executeForkedSkill` in `SkillTool.ts` (proactive / nested cases — split on `queryTracking.depth`).
+  - Both `tengu_input_command` emit paths and the `tengu_slash_command_forked` path in `processSlashCommand.tsx` (user-slash). Payload is the safe-cardinality subset of the BQ event (`invocation_trigger`, `command_name` routed through `OTEL_LOG_TOOL_DETAILS` redaction, `command_source` from `loadedFrom`, plus `query_depth` / `execution_context` where available) (`src/tools/SkillTool/SkillTool.ts`, `src/utils/processUserInput/processSlashCommand.tsx`).
+- **`--dangerously-skip-permissions` now bypasses every `classifierApprovable` safetyCheck** — the 2.1.121 carve-out only re-opened writes to `.claude/{skills,agents,commands}/`. The 2.1.126 broadening drops the per-path predicate (`isAuthorAssetPath`) and falls through any `safetyCheck` decision whose `decisionReason.classifierApprovable === true`. That covers the rest of `.claude/`, `.git/`, `.vscode/`, and shell config files (`.bashrc`, `.zshrc`, `.profile`, …). `classifierApprovable: false` decisions (suspicious Windows path patterns, catastrophic-rm targets) still prompt as the safety net the upstream changelog calls out. `isAuthorAssetPath` is gone since the new path no longer needs it (`src/utils/permissions/permissions.ts`).
+- **Removed the per-file malware-assessment `<system-reminder>` from Read tool output** — previously appended `CYBER_RISK_MITIGATION_REMINDER` to every text read for non-exempt models. Caused spurious refusals and "this is not malware" prefaces on legacy models, and the same guidance now lives in the system prompt. Dropped the constant, `MITIGATION_EXEMPT_MODELS`, `shouldIncludeFileReadMitigation`, and the now-unused `getCanonicalName / getMainLoopModel` import; updated the stale reminder reference in `transcriptSearch.ts`'s tool-result-indexing comment (`src/tools/FileReadTool/FileReadTool.ts`, `src/utils/transcriptSearch.ts`).
+- **Security: `allowManagedDomainsOnly` / `allowManagedReadPathsOnly` are honoured even when a higher-priority managed source lacks a `sandbox` block** — `policySettings` uses first-source-wins, so any non-empty remote managed settings (e.g. `enableAllProjectMcpServers: true`) would shadow an MDM/managed-settings.json `sandbox` lock-down and silently disable both flags. The two helpers in `sandbox-adapter.ts` now scan the managed-source chain (remote → MDM → managed-file → HKCU) and honour the first source whose `sandbox` block is defined. Non-sandbox fields keep first-source-wins (`src/utils/sandbox/sandbox-adapter.ts`).
+- **`/plugin Uninstall` no longer reports "Enabled"** — after a successful uninstall, `enabledPlugins[id]` is removed, so `enabledPlugins[id] !== false` evaluates `true` and the manage flow diverted to `PluginOptionsFlow`. With no userConfig to fill, that flow `finish()`-ed with `✓ Enabled <plugin>`. Gate the diversion on `operation !== 'uninstall' && operation !== 'update'`; both fall through to the standard `✓ Uninstalled` / `✓ Updated` message (`src/commands/plugin/ManagePlugins.tsx`).
+- **PowerShell tool: bare `--` no longer mis-flagged as `--%`** — the parser embedded a PowerShell snippet that set `hasStopParsing` for both `[TokenKind]::Generic` text `'--%'` and `[TokenKind]::MinusMinus`. The latter represents bare `--` (the decrement operator and the POSIX option-terminator) and fired on commands like `git diff -- file`. Dropped the `MinusMinus` branch; `--%` is consistently lexed as Generic across PS5.1 and PS7, so the surviving Generic check covers the real stop-parsing token (`src/utils/powershell/parser.ts`).
+- **claude.ai MCP connectors no longer suppressed by a manual server stuck in `needs-auth`** — `dedupClaudeAiMcpServers` only skipped manual servers when `isMcpServerDisabled(name)` was true, so a manual server with a stale 401 still claimed the URL signature and erased its connector twin — leaving the user with neither client connected. Added an optional `needsAuthManualNames: ReadonlySet<string>` parameter that is treated like the disabled-name list; in `useManageMCPConnections.ts` we read the current `mcp.clients` via a synchronous `setAppState(s => s)` callback and pass the set of names whose `type === 'needs-auth'` to dedup (`src/services/mcp/config.ts`, `src/services/mcp/useManageMCPConnections.ts`).
+- **Bumped local source version to `2.1.126`** (from `2.1.123`) — `package.json` and `preload.ts` MACRO.
+
+### Not applied (upstream-only or out of scope)
+
+- `/model` picker listing models from a gateway's `/v1/models` endpoint when `ANTHROPIC_BASE_URL` points at an Anthropic-compatible gateway — the local `ModelPicker.tsx` builds entries from a static `modelOptions.ts` list; there is no `/v1/models` discovery client.
+- `claude project purge [path]` (+ `--dry-run` / `-y` / `-i` / `--all`) — no `claude project` command group in the mirror.
+- `claude auth login` accepting pasted OAuth codes from blocked-callback environments (WSL2, SSH, containers) — OAuth callback handling is in the auth flow internals not reproduced here.
+- Auto-mode spinner turning red on stalled permission checks — Ink spinner/status internals.
+- Host-managed `CLAUDE_CODE_PROVIDER_MANAGED_BY_HOST` no longer auto-disabling analytics on Bedrock/Vertex/Foundry — provider-managed analytics gate lives in obfuscated source.
+- Windows PowerShell 7 detection (Store/MSI-without-PATH/.NET global tool) and using PowerShell as primary shell when the PowerShell tool is enabled — Windows-only shell selection.
+- Image-paste 2000px downscale + auto-remove + retry for oversized images already in history — downscale itself was pre-aligned in 2.1.123 (`IMAGE_MAX_WIDTH = 2000`); the history-rewrite/retry path doesn't exist in this mirror.
+- OAuth login screen for "OAuth not allowed for organization" errors + timeout fixes for slow/proxied connections, IPv6-only devcontainers, and unreachable browser callbacks — OAuth flow internals.
+- Concurrent-credential-write race clearing a valid OAuth refresh token — credential persistence layer.
+- API-retry countdown sticking at `0s`; "Stream idle timeout" after Mac sleep or long thinking pauses; assistant finishing-thinking-with-no-output hang; OAuth countdown UI — streaming / Ink internals.
+- Trackpad scroll speed in Cursor / VS Code 1.92–1.104 integrated terminals — terminal-specific Ink scroll handling.
+- claude.ai MCP connectors suppressed by manual servers stuck in `needs-auth` — applied above; the related "MCP connectors hidden by manual duplicate URL" UI hint from 2.1.123 stays unimplemented (UI string in obfuscated `/mcp` view).
+- CJK garbled-character rendering on Windows in no-flicker mode — Ink renderer Windows-specific buffer handling.
+- `Ctrl+L` clearing prompt input (now only forces redraw) — Ink keybinding handler.
+- Deferred tools (`WebSearch`, `WebFetch`, …) unavailable to `context: fork` skills on their first turn — subagent tool-resolution wiring.
+- Plan-mode tools unavailable in interactive `--channels` sessions — channels session wiring.
+- Bounded total size of file-modified `<system-reminder>` blocks — reminder-batching layer not in mirror.
+- `/remote-control` retry status / failure-reason notification; Remote Control "Always allow" persistence — Remote Control internals.
+- Windows clipboard writes via process-argv (EDR/SIEM exposure) + >22KB selection truncation — Windows-specific clipboard backend.
+- Agent SDK hang on malformed parallel-tool-call tool name — agent SDK loop not exposed in this mirror.
+
+---
+
 ## 2.1.123 — April 29, 2026
 
 Folds in upstream `2.1.122` (April 28) + the single-fix `2.1.123` release (April 29, 2026).

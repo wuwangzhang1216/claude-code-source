@@ -113,24 +113,6 @@ const PERMISSION_RULE_SOURCES = [
   'session',
 ] as const satisfies readonly PermissionRuleSource[]
 
-/**
- * Upstream 2.1.121: under --dangerously-skip-permissions, writes to a
- * .claude/{skills,agents,commands}/ directory should not prompt. These are
- * user-managed asset directories — adding a new skill or agent is the kind
- * of routine action that bypass mode is meant to streamline. settings.json,
- * hooks/, and other .claude/ contents stay safetyCheck-immune.
- *
- * Path is matched on segments to avoid prefix shenanigans (e.g. ".claude" is
- * matched as a literal segment, not a substring) and case-insensitively
- * because Windows filesystems are case-insensitive.
- */
-export function isAuthorAssetPath(path: string): boolean {
-  const normalized = path.replace(/\\/g, '/').toLowerCase()
-  // Match `.claude/skills/...`, `.claude/agents/...`, `.claude/commands/...`
-  // anywhere in the path so this works for nested project layouts too.
-  return /(?:^|\/)\.claude\/(skills|agents|commands)(?:\/|$)/.test(normalized)
-}
-
 export function permissionRuleSourceDisplayString(
   source: PermissionRuleSource,
 ): string {
@@ -1268,39 +1250,32 @@ async function hasPermissionsToUseToolInner(
   }
 
   // 1g. Safety checks (e.g. .git/, .claude/, .vscode/, shell configs) are
-  // bypass-immune — they must prompt even in bypassPermissions mode.
+  // bypass-immune by default — they prompt even in bypassPermissions mode.
   // checkPathSafetyForAutoEdit returns {type:'safetyCheck'} for these paths.
   if (
     toolPermissionResult?.behavior === 'ask' &&
     toolPermissionResult.decisionReason?.type === 'safetyCheck'
   ) {
     // Upstream 2.1.121: writes to .claude/skills/, .claude/agents/, and
-    // .claude/commands/ are user-managed asset directories — not dangerous
-    // config like settings.json or hooks/. Under --dangerously-skip-
-    // permissions the user has accepted broad bypass, so prompting on
-    // these specific subpaths is friction, not safety. Carve them out:
-    // re-check only when bypass mode is active (or plan with bypass-
-    // available). Outside bypass, the original safetyCheck still fires.
+    // .claude/commands/ were the first carve-outs.
+    //
+    // Upstream 2.1.126 broadens that to every classifierApprovable
+    // safetyCheck — sensitive-file paths like the rest of .claude/, .git/,
+    // .vscode/, and shell config files (.bashrc, .zshrc, .profile, …). Under
+    // --dangerously-skip-permissions the user has accepted broad bypass, so
+    // prompting on classifier-approvable paths is friction, not safety.
+    //
+    // classifierApprovable=false decisions (suspicious Windows path patterns,
+    // catastrophic rm targets) stay immune as a safety net — those are the
+    // checks the changelog calls out as "still prompt".
     appState = context.getAppState()
     const inBypass =
       appState.toolPermissionContext.mode === 'bypassPermissions' ||
       (appState.toolPermissionContext.mode === 'plan' &&
         appState.toolPermissionContext.isBypassPermissionsModeAvailable)
-    if (inBypass && typeof tool.getPath === 'function') {
-      try {
-        const path = tool.getPath(input)
-        if (isAuthorAssetPath(path)) {
-          // Fall through to the bypass branch below — do NOT return the
-          // safetyCheck ask. Step 2a handles the actual allow.
-        } else {
-          return toolPermissionResult
-        }
-      } catch {
-        // tool.getPath threw on this input (rare). Be conservative and
-        // keep the safetyCheck immune so bypass doesn't accidentally
-        // grant something we couldn't classify.
-        return toolPermissionResult
-      }
+    if (inBypass && toolPermissionResult.decisionReason.classifierApprovable) {
+      // Fall through to the bypass branch below — do NOT return the
+      // safetyCheck ask. Step 2a handles the actual allow.
     } else {
       return toolPermissionResult
     }

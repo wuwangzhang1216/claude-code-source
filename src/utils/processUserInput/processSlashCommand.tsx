@@ -74,6 +74,15 @@ async function executeForkedSlashCommand(command: CommandBase & PromptCommand, a
       ...buildPluginCommandTelemetryFields(command.pluginInfo)
     })
   });
+  // Upstream 2.1.126: emit claude_code.skill_activated alongside the BQ event
+  // so OTLP consumers see the user-typed slash command path the same way they
+  // see Claude-proactive SkillTool activations.
+  void logOTelEvent('skill_activated', {
+    invocation_trigger: 'user-slash',
+    execution_context: 'fork',
+    command_name: isToolDetailsLoggingEnabled() ? command.name : 'custom',
+    command_source: command.loadedFrom ?? 'unknown'
+  });
   const {
     skillContent,
     modifiedGetAppState,
@@ -471,6 +480,11 @@ export async function processSlashCommand(inputString: string, precedingInputBlo
         })
       })
     });
+    void logOTelEvent('skill_activated', {
+      invocation_trigger: 'user-slash',
+      command_name: isToolDetailsLoggingEnabled() ? commandName : sanitizedCommandName,
+      command_source: returnedCommand.loadedFrom ?? 'builtin'
+    });
     return {
       messages: [],
       shouldQuery: false,
@@ -538,6 +552,11 @@ export async function processSlashCommand(inputString: string, precedingInputBlo
         skill_kind: returnedCommand.kind as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS
       })
     })
+  });
+  void logOTelEvent('skill_activated', {
+    invocation_trigger: 'user-slash',
+    command_name: isToolDetailsLoggingEnabled() ? commandName : sanitizedCommandName,
+    command_source: returnedCommand.loadedFrom ?? 'builtin'
   });
 
   // Check if this is a compact result which handle their own synthetic caveat message ordering
