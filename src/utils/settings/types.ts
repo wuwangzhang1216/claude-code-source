@@ -466,6 +466,20 @@ export const SettingsSchema = lazySchema(() =>
               'Directories to include when creating worktrees, via git sparse-checkout (cone mode). ' +
                 'Dramatically faster in large monorepos — only the listed paths are written to disk.',
             ),
+          // Upstream 2.1.133: base ref for newly-created worktrees.
+          //   - 'fresh' (default): branch from origin/<default-branch>. Worktree
+          //     starts from the remote tip; matches the pre-2.1.128 behaviour
+          //     and the upstream default.
+          //   - 'head': branch from local HEAD. Preserves the user's unpushed
+          //     commits inside the new worktree (this mirror's 2.1.128 default).
+          // Applies to --worktree, EnterWorktree, and agent-isolation worktrees.
+          baseRef: z
+            .enum(['fresh', 'head'])
+            .optional()
+            .describe(
+              'Where new worktrees branch from. ' +
+                '"fresh" (default) uses origin/<default-branch>; "head" uses local HEAD so unpushed commits carry over.',
+            ),
         })
         .optional()
         .describe('Git worktree configuration for --worktree flag.'),

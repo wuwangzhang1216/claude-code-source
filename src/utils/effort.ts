@@ -154,6 +154,36 @@ export function resolvePickerEffortPersistence(
   return hadExplicit || picked !== modelDefault ? picked : undefined
 }
 
+/**
+ * Upstream 2.1.133: resolve the effort level to expose to subprocesses
+ * ($CLAUDE_EFFORT) and hooks (effort.level JSON field). Uses the same
+ * precedence chain as resolveAppliedEffort but without the model-default
+ * fallback, since we don't know the active model at subprocess-spawn time.
+ *
+ * Returns:
+ *   - The env override level if CLAUDE_CODE_EFFORT_LEVEL is set to a valid
+ *     level (highest precedence).
+ *   - The user-persisted setting if no env override.
+ *   - undefined when no explicit choice exists (subprocesses won't see the
+ *     env var, hooks won't see effort.level in their payload).
+ *
+ * Returns a string label ('low' | 'medium' | 'high' | 'xhigh' | 'max') —
+ * not the raw EffortValue, since numeric values are ant-internal and
+ * subprocess consumers expect a stable string.
+ */
+export function getEffortLevelForSubprocess(): EffortLevel | undefined {
+  const envOverride = getEffortEnvOverride()
+  if (envOverride === null) {
+    // CLAUDE_CODE_EFFORT_LEVEL=unset/auto — explicit "no override"; fall
+    // through to settings so a /effort write still propagates to children.
+  } else if (envOverride !== undefined) {
+    return convertEffortValueToLevel(envOverride)
+  }
+  const persisted = getInitialSettings().effortLevel
+  if (persisted === undefined) return undefined
+  return convertEffortValueToLevel(persisted)
+}
+
 export function getEffortEnvOverride(): EffortValue | null | undefined {
   const envOverride = process.env.CLAUDE_CODE_EFFORT_LEVEL
   return envOverride?.toLowerCase() === 'unset' ||

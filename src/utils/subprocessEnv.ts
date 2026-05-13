@@ -1,5 +1,6 @@
 import { isEnvTruthy } from './envUtils.js'
 import { getSessionId } from '../bootstrap/state.js'
+import { getEffortLevelForSubprocess } from './effort.js'
 
 /**
  * Env vars to strip from subprocess environments when running inside GitHub
@@ -125,12 +126,32 @@ export function subprocessEnv(): NodeJS.ProcessEnv {
     ? { CLAUDE_CODE_SESSION_ID: sessionId }
     : {}
 
+  // Upstream 2.1.133: expose the current effort level as $CLAUDE_EFFORT so
+  // Bash commands and hooks can branch on it (e.g. a pre-commit hook that
+  // tightens linting on `/effort max` runs). Mirrors the effort.level field
+  // we add to the hook JSON payload elsewhere. Resolution is settings + env
+  // override only — model-default fallback is intentionally skipped here
+  // since hooks shouldn't see a different effort than the user explicitly
+  // configured.
+  let effortLevel: ReturnType<typeof getEffortLevelForSubprocess>
+  try {
+    effortLevel = getEffortLevelForSubprocess()
+  } catch {
+    // Settings module may not be initialised at very early startup; never
+    // throw out of subprocessEnv since it gates every child-process spawn.
+    effortLevel = undefined
+  }
+  const effortAttribution: NodeJS.ProcessEnv = effortLevel
+    ? { CLAUDE_EFFORT: effortLevel }
+    : {}
+
   if (!isEnvTruthy(process.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB)) {
     const merged = {
       ...process.env,
       ...proxyEnv,
       ...agentAttribution,
       ...sessionAttribution,
+      ...effortAttribution,
     }
     stripOtelVars(merged)
     return merged
@@ -140,6 +161,7 @@ export function subprocessEnv(): NodeJS.ProcessEnv {
     ...proxyEnv,
     ...agentAttribution,
     ...sessionAttribution,
+    ...effortAttribution,
   }
   for (const k of GHA_SUBPROCESS_SCRUB) {
     delete env[k]

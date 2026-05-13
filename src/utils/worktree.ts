@@ -22,11 +22,13 @@ import {
   getCommonDir,
   readWorktreeHeadSha,
   resolveGitDir,
+  resolveRef,
 } from './git/gitFilesystem.js'
 import {
   findCanonicalGitRoot,
   findGitRoot,
   getBranch,
+  getDefaultBranch,
   gitExe,
 } from './git.js'
 import {
@@ -273,19 +275,48 @@ async function getOrCreateWorktree(
     }
     baseBranch = 'FETCH_HEAD'
   } else {
-    // Upstream 2.1.128: branch from local HEAD. The previous behavior
-    // forked from origin/<default-branch>, which silently dropped any
-    // unpushed commits the user had on top of main — the worktree would
-    // start from the remote tip rather than what the user was actually
-    // looking at. Branching from HEAD also avoids the fetch — no
-    // network round-trip on every worktree create, and stale-remote
-    // surprises (worktree forked from a months-old origin/main while
-    // local main was up-to-date) go away.
-    baseBranch = 'HEAD'
+    // Upstream 2.1.133: worktree.baseRef setting selects the base ref.
+    //   - 'head': branch from local HEAD. Preserves unpushed commits inside
+    //     the new worktree (this mirror's 2.1.128 default, now opt-in).
+    //   - 'fresh' (default): branch from origin/<default-branch>. Matches
+    //     pre-2.1.128 and the upstream default — worktrees start clean from
+    //     the remote tip, useful for agent-isolation worktrees that should
+    //     not inherit half-finished work-in-progress on local main.
+    const settings = getInitialSettings()
+    const baseRef = settings.worktree?.baseRef ?? 'fresh'
+    if (baseRef === 'head') {
+      baseBranch = 'HEAD'
+    } else {
+      // If origin/<branch> already exists locally, skip fetch. In large repos
+      // (210k files, 16M objects) fetch burns ~6-8s on a local commit-graph
+      // scan before even hitting the network. A slightly stale base is fine —
+      // the user can pull in the worktree if they want latest. resolveRef
+      // reads the loose/packed ref directly; when it succeeds we already have
+      // the SHA, so the later rev-parse is skipped entirely.
+      const [defaultBranch, gitDir] = await Promise.all([
+        getDefaultBranch(),
+        resolveGitDir(repoRoot),
+      ])
+      const originRef = `origin/${defaultBranch}`
+      const originSha = gitDir
+        ? await resolveRef(gitDir, `refs/remotes/origin/${defaultBranch}`)
+        : null
+      if (originSha) {
+        baseBranch = originRef
+        baseSha = originSha
+      } else {
+        const { code: fetchCode } = await execFileNoThrowWithCwd(
+          gitExe(),
+          ['fetch', 'origin', defaultBranch],
+          { cwd: repoRoot, stdin: 'ignore', env: fetchEnv },
+        )
+        baseBranch = fetchCode === 0 ? originRef : 'HEAD'
+      }
+    }
   }
 
-  // Resolve baseBranch (HEAD or FETCH_HEAD) to a SHA so worktree add gets
-  // a stable point even if local HEAD moves before the add lands.
+  // For the fetch/PR-fetch paths we still need the SHA — the fs-only resolveRef
+  // above only covers the "origin/<branch> already exists locally" case.
   if (!baseSha) {
     const { stdout, code: shaCode } = await execFileNoThrowWithCwd(
       gitExe(),

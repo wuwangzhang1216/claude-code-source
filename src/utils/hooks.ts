@@ -311,12 +311,27 @@ export function createBaseHookInput(
   permission_mode?: string
   agent_id?: string
   agent_type?: string
+  effort?: { level: string }
 } {
   const resolvedSessionId = sessionId ?? getSessionId()
   // agent_type: subagent's type (from toolUseContext) takes precedence over
   // the session's --agent flag. Hooks use agent_id presence to distinguish
   // subagent calls from main-thread calls in a --agent session.
   const resolvedAgentType = agentInfo?.agentType ?? getMainThreadAgentType()
+  // Upstream 2.1.133: hooks receive the active effort level via the
+  // effort.level JSON field (mirrors the $CLAUDE_EFFORT env var). Skip the
+  // field entirely when the user hasn't set an explicit effort — that way
+  // hooks parsing the JSON don't have to special-case 'auto' / 'default'.
+  let effortLevel: string | undefined
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const effortModule = require('./effort.js') as {
+      getEffortLevelForSubprocess: () => string | undefined
+    }
+    effortLevel = effortModule.getEffortLevelForSubprocess()
+  } catch {
+    effortLevel = undefined
+  }
   return {
     session_id: resolvedSessionId,
     transcript_path: getTranscriptPathForSession(resolvedSessionId),
@@ -324,6 +339,7 @@ export function createBaseHookInput(
     permission_mode: permissionMode,
     agent_id: agentInfo?.agentId,
     agent_type: resolvedAgentType,
+    ...(effortLevel ? { effort: { level: effortLevel } } : {}),
   }
 }
 

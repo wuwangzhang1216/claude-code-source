@@ -2,6 +2,26 @@
 
 All notable changes tracked here. This is a local/educational source mirror of Claude Code, not an official release stream.
 
+## 2.1.133 — May 7, 2026
+
+Folds the user-facing, tractable subset of upstream `2.1.133`.
+
+### Applied in this local source tree
+
+- **`worktree.baseRef` setting (`fresh` | `head`)** — adds a settings key under the existing `worktree` block that controls the base ref for `--worktree`, `EnterWorktree`, and agent-isolation worktrees. **The default is now `fresh`**, which restores the upstream pre-2.1.128 behaviour: new worktrees branch from `origin/<default-branch>`. Users who want unpushed commits to carry over (the local mirror's 2.1.128 default) can set `"worktree": { "baseRef": "head" }` (`src/utils/settings/types.ts`, `src/utils/worktree.ts`).
+- **Hooks and Bash tool see the active effort level via `$CLAUDE_EFFORT`** — `subprocessEnv()` injects `CLAUDE_EFFORT=<level>` whenever the user has set an explicit effort (env override or persisted setting). Resolution is settings + `CLAUDE_CODE_EFFORT_LEVEL` only — the model-default fallback is skipped so hooks don't see a level the user didn't ask for. Bash tool commands inherit it via the standard `subprocessEnv()` call (`src/utils/effort.ts`, `src/utils/subprocessEnv.ts`).
+- **Hooks JSON payload gains `effort: { level }`** — `createBaseHookInput` adds the field when an explicit effort is set (omitted otherwise so existing hooks don't have to special-case "auto"). Lazy-require avoids cyclic imports between `hooks.ts` and `effort.ts` (`src/utils/hooks.ts`).
+- **`claude --help` now lists `--remote-control`** — dropped `.hideHelp()` from `--remote-control [name]`. The `--rc` alias stays hidden so completion noise stays low. Documentation already referenced the flag; the help output and docs now agree (`src/main.tsx`).
+- **Bumped local source version to `2.1.133`** (from `2.1.132`) — `package.json` and `preload.ts` MACRO.
+
+### Not applied (upstream-only or out of scope)
+
+- `sandbox.bwrapPath` / `sandbox.socatPath` managed settings — bubblewrap is Linux/WSL only and the sandbox-adapter binary-discovery layer in this mirror doesn't expose a hookable override.
+- `parentSettingsBehavior` admin-tier key (`first-wins` | `merge`) for SDK managedSettings — SDK parent-tier settings plumbing is in the SDK host code not reproduced here.
+- Improved focus mode behavior; warm-spare background worker memory-pressure releases; mapped-network-drive Edit/Write/Read on Windows; Remote Control stop/interrupt from claude.ai not fully cancelling; `/effort` cross-session race; subagents not discovering project/user/plugin skills via the Skill tool; Esc during compaction spurious error notification; HTTP(S)_PROXY / NO_PROXY / mTLS for the full MCP OAuth flow; refresh-token race wiping shared credentials; Edit/Write allow rules scoped to a drive root or POSIX `/`; ECOMPROMISED file lock; `[VSCode] claudeProcessWrapper` — Ink / native-build / Windows / SDK / VS Code internals.
+
+---
+
 ## 2.1.132 — May 6, 2026
 
 Folds the user-facing, tractable subset of upstream `2.1.132` (2.1.130 was a VS Code Windows hotfix + Mantle endpoint x-api-key — neither reproduces here; 2.1.131 was an internal patch).

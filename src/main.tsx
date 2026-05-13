@@ -3938,7 +3938,11 @@ async function run(): Promise<CommanderCommand> {
   program.addOption(new Option('--teleport [session]', 'Resume a teleport session, optionally specify session ID').hideHelp());
   program.addOption(new Option('--remote [description]', 'Create a remote session with the given description').hideHelp());
   if (feature('BRIDGE_MODE')) {
-    program.addOption(new Option('--remote-control [name]', 'Start an interactive session with Remote Control enabled (optionally named)').argParser(value => value || true).hideHelp());
+    // Upstream 2.1.133: surface --remote-control in `claude --help`. The
+    // flag has been GA for a while and matches the documented subcommand
+    // `claude remote-control`; keeping it hidden made `--help` and the docs
+    // disagree. The --rc alias stays hidden so completion noise stays low.
+    program.addOption(new Option('--remote-control [name]', 'Start an interactive session with Remote Control enabled (optionally named)').argParser(value => value || true));
     program.addOption(new Option('--rc [name]', 'Alias for --remote-control').argParser(value => value || true).hideHelp());
   }
   if (feature('HARD_FAIL')) {
