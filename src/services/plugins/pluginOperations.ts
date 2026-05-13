@@ -185,6 +185,16 @@ function findPluginInSettings(plugin: string): {
   // Most specific first — first match wins
   const searchOrder: InstallableScope[] = ['local', 'project', 'user']
 
+  // Upstream 2.1.136: match case-insensitively. Plugin slugs are
+  // conventionally lower-kebab-case but users commonly type the display
+  // name they see in /plugin (Mixed-Case) when running uninstall/
+  // disable/enable. The previous strict-equality check returned "not
+  // found" and the operation silently no-op'd. We preserve the original
+  // key's casing in the returned pluginId so downstream Object lookups
+  // against `enabledPlugins` still hit the correct entry.
+  const pluginLower = plugin.toLowerCase()
+  const matchPrefix = `${pluginLower}@`
+
   for (const scope of searchOrder) {
     const enabledPlugins = getSettingsForSource(
       scopeToSettingSource(scope),
@@ -192,7 +202,8 @@ function findPluginInSettings(plugin: string): {
     if (!enabledPlugins) continue
 
     for (const key of Object.keys(enabledPlugins)) {
-      if (hasMarketplace ? key === plugin : key.startsWith(`${plugin}@`)) {
+      const keyLower = key.toLowerCase()
+      if (hasMarketplace ? keyLower === pluginLower : keyLower.startsWith(matchPrefix)) {
         return { pluginId: key, scope }
       }
     }
@@ -207,15 +218,24 @@ function findPluginByIdentifier(
   plugin: string,
   plugins: LoadedPlugin[],
 ): LoadedPlugin | undefined {
+  // Upstream 2.1.136: case-insensitive name comparison. See the matching
+  // change in findPluginInSettings above.
   const { name, marketplace } = parsePluginIdentifier(plugin)
+  const pluginLower = plugin.toLowerCase()
+  const nameLower = name.toLowerCase()
+  const marketplaceLower = marketplace?.toLowerCase()
 
   return plugins.find(p => {
-    // Check exact name match
-    if (p.name === plugin || p.name === name) return true
+    const pNameLower = p.name.toLowerCase()
+    // Check name match
+    if (pNameLower === pluginLower || pNameLower === nameLower) return true
 
     // If marketplace specified, check if it matches the source
-    if (marketplace && p.source) {
-      return p.name === name && p.source.includes(`@${marketplace}`)
+    if (marketplaceLower && p.source) {
+      return (
+        pNameLower === nameLower &&
+        p.source.toLowerCase().includes(`@${marketplaceLower}`)
+      )
     }
 
     return false

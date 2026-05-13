@@ -52,8 +52,24 @@ const UNIQUENESS_REFINE = {
   },
   message: 'Question texts must be unique, option labels must be unique within each question'
 } as const;
+// Upstream 2.1.136: SDK hosts (and some bridge clients) sometimes submit
+// multi-select answers as an array — { "Pick languages?": ["Go", "Rust"] }
+// — instead of the comma-separated string the tool output schema documents.
+// Accept either form here; we collapse the array to a comma-separated string
+// downstream so the rest of the tool (rendering, analytics, the model-facing
+// content) sees the documented shape. Single-string answers pass through
+// unchanged.
+const answerValueSchema = lazySchema(() =>
+  z
+    .union([z.string(), z.array(z.string())])
+    .transform(value => (Array.isArray(value) ? value.join(', ') : value)),
+)
+
 const commonFields = lazySchema(() => ({
-  answers: z.record(z.string(), z.string()).optional().describe('User answers collected by the permission component'),
+  answers: z
+    .record(z.string(), answerValueSchema())
+    .optional()
+    .describe('User answers collected by the permission component'),
   annotations: annotationsSchema(),
   metadata: z.object({
     source: z.string().optional().describe('Optional identifier for the source of this question (e.g., "remember" for /remember command). Used for analytics tracking.')

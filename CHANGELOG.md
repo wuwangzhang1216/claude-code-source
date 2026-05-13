@@ -2,6 +2,27 @@
 
 All notable changes tracked here. This is a local/educational source mirror of Claude Code, not an official release stream.
 
+## 2.1.138 — May 9, 2026
+
+Single-bump pulls the user-facing, tractable subset of upstream `2.1.136`. Upstream `2.1.137` was a VS Code Windows hotfix and `2.1.138` was "Internal fixes" — neither reproduces here.
+
+### Applied in this local source tree
+
+- **`CLAUDE_CODE_ENABLE_FEEDBACK_SURVEY_FOR_OTEL=1` re-enables the session-quality survey for OTel-only enterprises** — `isFeedbackSurveyDisabled()` previously returned `true` whenever `isTelemetryDisabled()` did, which silently dropped the survey for orgs that only have OTLP analytics. The env var now overrides that suppression so OTLP pipelines see the same survey events as 1P telemetry would. `NODE_ENV=test` still wins and `isTelemetryDisabled()` without the opt-in still hides the survey (`src/services/analytics/config.ts`).
+- **`/branch <multi-line name>` saves a single-line session title** — collapse whitespace runs to a single space before persisting. Matches what `deriveFirstPrompt` already does for the auto-derived path. Without this, a pasted multi-line value would break the `/resume` picker layout and show raw newlines in the session list (`src/commands/branch/branch.ts`).
+- **`AskUserQuestion` accepts array answers for multi-select** — input schema's `answers` value is now `string | string[]` with a Zod transform that joins arrays with `", "`. SDK hosts and bridge clients that submit `{ "Pick languages?": ["Go", "Rust"] }` instead of `"Go, Rust"` are no longer silently dropped. Output shape (the model-visible side) stays `Record<string, string>` — the transform normalizes during input parsing (`src/tools/AskUserQuestionTool/AskUserQuestionTool.tsx`).
+- **Plugin `uninstall` / `enable` / `disable` match slugs case-insensitively** — `findPluginInSettings` and `findPluginByIdentifier` now compare lower-cased names. Users who type `claude plugin disable Foo` (display-name casing) no longer see the silent no-op when the persisted slug is `foo`. The original casing of the persisted key is preserved in the returned `pluginId` so downstream `enabledPlugins` writes still hit the correct entry (`src/services/plugins/pluginOperations.ts`).
+- **Bumped local source version to `2.1.138`** (from `2.1.133`) — `package.json` and `preload.ts` MACRO.
+
+### Not applied (upstream-only or out of scope)
+
+- `settings.autoMode.hard_deny` classifier rules — adding the schema field is easy but wiring it into the classifier (so unconditional denies actually bypass user-intent and allow-rule exceptions) requires touching `yoloClassifier.ts` enforcement in ways the obfuscated decision path doesn't surface cleanly.
+- MCP servers from `.mcp.json` / plugins / claude.ai connectors silently disappearing after `/clear` in VS Code / JetBrains / Agent SDK — host-integration-specific path not exposed in this mirror.
+- Concurrent credential-write OAuth refresh race; concurrent MCP-OAuth refresh-token loss — auth refresh layer in obfuscated source.
+- API 400 when extended thinking emits a redacted thinking block after a tool call; `--resume` / `--continue` not finding sessions when project path contains underscores; plan mode not blocking writes against a matching `Edit(...)` allow rule; WSL2 PowerShell image-paste fallback; plugin Stop / UserPromptSubmit hooks failing when cache cleanup deletes an in-use version; colors at wrong positions in bash output / markdown code blocks; ReasonML diff "undefined" artifacts; worktree exit dialog wrong-directory warning; `@`-mention file picker mid-session / >100-entry edge cases; truncated tool calls not click-to-expand in fullscreen; Backspace / Ctrl+Backspace swap after Ctrl+G; `/usage` weekly reset showing time instead of date; CJK welcome banner overflow; `/insights` crash on malformed tool input; renderer crash on collapsibility-class change; plugin manifest `skills` entry hiding default `skills/` directory; IDE shell-integration lock files not respecting `CLAUDE_CONFIG_DIR`; trailing whitespace on streaming copy; tool-error truncation negative count for surrogate pairs; `CLAUDE_ENV_FILE` `SessionStart` env-var staleness after `/resume`/`/clear`; stray leading space on wrapped text; Esc not dismissing several dialogs; `/doctor` MCP schema error formatting; Bash permission-prompt parser-diagnostic surfacing; plugin slash commands with spaces (`/myplugin review`); `/clear <name>` not labeling cleared session; `CronList` qualifier output; CJK "Jump to bottom" color artifacts; wide-table stale render; pasted-text truncation silently dropping content; `/release-notes` stuck on old version; `/mcp` server list scrolling; mid-input slash autocomplete; auto-follow re-engage with `autoScrollEnabled: false`; prompt-suggestion Enter-submit; keyboard-shortcut hints not reflecting rebinds; `/settings` language reverted on Escape; `/terminal-setup` autocomplete partial-prefix; "Chat about this" erasing question; MCP content-block results invisible; `--worktree` collision error message copy; plugin-marketplace removal key change `r` → `d`; `[VSCode] claudeProcessWrapper`-style host fixes — Ink rendering / native-build / Windows / SDK / host-integration / obfuscated UI internals.
+
+---
+
 ## 2.1.133 — May 7, 2026
 
 Folds the user-facing, tractable subset of upstream `2.1.133`.

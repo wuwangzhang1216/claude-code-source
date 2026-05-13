@@ -224,7 +224,13 @@ export async function call(
   context: LocalJSXCommandContext,
   args: string,
 ): Promise<React.ReactNode> {
-  const customTitle = args?.trim() || undefined
+  // Upstream 2.1.136: when the user pastes a multi-line value as the
+  // /branch name, collapse all whitespace runs to single spaces so the
+  // saved session title is a single line. Otherwise the persisted title
+  // breaks the /resume picker layout and shows raw newlines in the
+  // session list. deriveFirstPrompt already does this for the auto-derived
+  // path; the explicit-name path needs the same normalization.
+  const customTitle = args?.replace(/\s+/g, ' ').trim() || undefined
 
   const originalSessionId = getSessionId()
 

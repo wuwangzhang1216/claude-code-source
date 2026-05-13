@@ -32,7 +32,21 @@ export function isAnalyticsDisabled(): boolean {
  * Unlike isAnalyticsDisabled(), this does NOT block on 3P providers
  * (Bedrock/Vertex/Foundry). The survey is a local UI prompt with no
  * transcript data — enterprise customers capture responses via OTEL.
+ *
+ * Upstream 2.1.136: CLAUDE_CODE_ENABLE_FEEDBACK_SURVEY_FOR_OTEL=1
+ * forces the survey on even when isTelemetryDisabled() returned true
+ * because the user has only OTEL telemetry configured (no 1P analytics).
+ * These enterprises capture survey responses through their OTLP pipeline
+ * and lose visibility into product feedback when the survey is silently
+ * suppressed by the default telemetry-disabled check.
  */
 export function isFeedbackSurveyDisabled(): boolean {
-  return process.env.NODE_ENV === 'test' || isTelemetryDisabled()
+  if (process.env.NODE_ENV === 'test') return true
+  if (
+    isTelemetryDisabled() &&
+    process.env.CLAUDE_CODE_ENABLE_FEEDBACK_SURVEY_FOR_OTEL !== '1'
+  ) {
+    return true
+  }
+  return false
 }
