@@ -68,6 +68,14 @@ export function isProgressReportingAvailable(): boolean {
  * When supported, BSU/ESU sequences prevent visible flicker during redraws.
  */
 export function isSynchronizedOutputSupported(): boolean {
+  // Upstream 2.1.129: CLAUDE_CODE_FORCE_SYNC_OUTPUT=1 force-enables
+  // synchronized output for terminals our heuristics miss (Emacs `eat`,
+  // niche emulators that proxy DEC 2026 correctly but don't advertise
+  // themselves via TERM/TERM_PROGRAM). The escape passes through harmlessly
+  // even on terminals that ignore it, so opting in is safe — we just don't
+  // want to assume it everywhere by default.
+  if (process.env.CLAUDE_CODE_FORCE_SYNC_OUTPUT === '1') return true
+
   // tmux parses and proxies every byte but doesn't implement DEC 2026.
   // BSU/ESU pass through to the outer terminal but tmux has already
   // broken atomicity by chunking. Skip to save 16 bytes/frame + parser work.

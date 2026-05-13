@@ -639,6 +639,10 @@ const externalTips: Tip[] = [
     },
     cooldownSessions: 3,
     isRelevant: async () => {
+      // Upstream 2.1.129: /passes is a first-party referral surface. Bedrock/
+      // Vertex/Foundry/ANTHROPIC_BASE_URL gateway users have no account on
+      // claude.ai, so the tip is dead weight (and the slash command 404s).
+      if (!is1PApiCustomer()) return false
       const config = getGlobalConfig()
       if (config.hasVisitedPasses) {
         return false
@@ -658,7 +662,12 @@ const externalTips: Tip[] = [
       return `${claude(`${amount} in extra usage, on us`)} · third-party apps · ${claude('/extra-usage')}`
     },
     cooldownSessions: 3,
-    isRelevant: async () => shouldShowOverageCreditUpsell(),
+    // Upstream 2.1.129: /extra-usage is the first-party overage credit
+    // surface — only relevant to 1P customers. shouldShowOverageCreditUpsell()
+    // already returns false off 1P in most cases, but gating here makes it
+    // explicit and matches the rest of the first-party-only tips.
+    isRelevant: async () =>
+      is1PApiCustomer() && shouldShowOverageCreditUpsell(),
   },
   {
     id: 'feedback-command',

@@ -275,3 +275,34 @@ export function trackGitOperations(
     getPrCounter()?.add(1)
   }
 }
+
+/**
+ * Upstream 2.1.129: count PRs/MRs created through MCP tools, not just via
+ * shell. Match the convention shared across the major Git host MCP servers
+ * (`mcp__github__create_pull_request`, `mcp__gitlab__create_merge_request`,
+ * `mcp__bitbucket__create_pull_request`, etc.) by checking whether the
+ * tool's method segment after the server name contains a `create_pull_request`,
+ * `create_merge_request`, or `create_pr` token. The server name segment
+ * isn't constrained — third parties often namespace per-org (e.g.
+ * `mcp__github_acme__create_pull_request`) so we don't whitelist server names.
+ */
+const MCP_PR_CREATE_METHOD_RE =
+  /(?:^|_)(create[_-]?pull[_-]?request|create[_-]?merge[_-]?request|create[_-]?pr)$/i
+
+export function isMcpPrCreateToolName(toolName: string): boolean {
+  if (!toolName.startsWith('mcp__')) return false
+  // mcp__<server>__<method> — strip the prefix + server segment, match method.
+  const parts = toolName.split('__')
+  if (parts.length < 3) return false
+  const method = parts.slice(2).join('__')
+  return MCP_PR_CREATE_METHOD_RE.test(method)
+}
+
+export function trackMcpPrCreate(toolName: string): void {
+  if (!isMcpPrCreateToolName(toolName)) return
+  logEvent('tengu_git_operation', {
+    operation:
+      'pr_create' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
+  })
+  getPrCounter()?.add(1)
+}

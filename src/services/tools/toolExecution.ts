@@ -43,7 +43,10 @@ import { FILE_READ_TOOL_NAME } from '../../tools/FileReadTool/prompt.js'
 import { FILE_WRITE_TOOL_NAME } from '../../tools/FileWriteTool/prompt.js'
 import { NOTEBOOK_EDIT_TOOL_NAME } from '../../tools/NotebookEditTool/constants.js'
 import { POWERSHELL_TOOL_NAME } from '../../tools/PowerShellTool/toolName.js'
-import { parseGitCommitId } from '../../tools/shared/gitOperationTracking.js'
+import {
+  parseGitCommitId,
+  trackMcpPrCreate,
+} from '../../tools/shared/gitOperationTracking.js'
 import {
   isDeferredTool,
   TOOL_SEARCH_TOOL_NAME,
@@ -1329,6 +1332,13 @@ async function checkPermissionsAndCallTool(
           bashInput._simulatedSedEdit?.filePath,
         )
       }
+    }
+
+    // Upstream 2.1.129: claude_code.pull_request.count must also reflect PRs
+    // created via MCP tools (e.g. mcp__github__create_pull_request). Only
+    // bump on successful invocations — failed MCP calls don't create PRs.
+    if (tool.isMcp) {
+      trackMcpPrCreate(tool.name)
     }
 
     logEvent('tengu_tool_use_success', {

@@ -1184,6 +1184,10 @@ export function categorizeRetryableAPIError(
 export function getErrorMessageIfRefusal(
   stopReason: BetaStopReason | null,
   model: string,
+  // Upstream 2.1.129: thread the request id through so the user can copy
+  // it into a support ticket when a policy refusal looks wrong. Optional
+  // for backwards compat with non-stream call sites that don't carry one.
+  requestId?: string | null,
 ): AssistantMessage | undefined {
   if (stopReason !== 'refusal') {
     return
@@ -1200,8 +1204,10 @@ export function getErrorMessageIfRefusal(
       ? ' If you are seeing this refusal repeatedly, try running /model claude-sonnet-4-20250514 to switch models.'
       : ''
 
+  const requestIdSuffix = requestId ? ` (Request ID: ${requestId})` : ''
+
   return createAssistantAPIErrorMessage({
-    content: baseMessage + modelSuggestion,
+    content: baseMessage + modelSuggestion + requestIdSuffix,
     error: 'invalid_request',
   })
 }

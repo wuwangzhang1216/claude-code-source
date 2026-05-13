@@ -2,6 +2,34 @@
 
 All notable changes tracked here. This is a local/educational source mirror of Claude Code, not an official release stream.
 
+## 2.1.129 — May 6, 2026
+
+Applies the user-facing, tractable subset of upstream `2.1.129`.
+
+### Applied in this local source tree
+
+- **`CLAUDE_CODE_FORCE_SYNC_OUTPUT=1` force-enables DEC mode 2026 synchronized output** — bypasses the env-based detection in `isSynchronizedOutputSupported()` for terminals our heuristics miss (Emacs `eat`, niche emulators that proxy BSU/ESU correctly but don't advertise themselves via `TERM`/`TERM_PROGRAM`). The escape passes through harmlessly on terminals that ignore it, so opt-in is safe (`src/ink/terminal.ts`).
+- **Spinner tips: gate first-party-surface tips on `is1PApiCustomer()`** — `guest-passes` (refers to `/passes`, a claude.ai referral surface) and `overage-credit` (refers to `/extra-usage`) now bail out for Bedrock/Vertex/Foundry/`ANTHROPIC_BASE_URL` gateway deployments, where those surfaces don't exist. Matches the existing `is1PApiCustomer()` gate already on the other claude.ai-only tips (`src/services/tips/tipRegistry.ts`).
+- **Unrecognized 400 API errors show the underlying message instead of the raw JSON body** — when the Anthropic SDK falls back to JSON-stringifying the response body into `APIError.message` (e.g. `400 {"type":"error","error":{"message":"…"}}`), `sanitizeAPIError` now extracts the inner `error.message` (both Anthropic's `error.error.message` and Bedrock's `error.message` shapes) before HTML-sanitizing it. Matches the existing JSONL-deserialization recovery path; users see the actual reason instead of a JSON dump (`src/services/api/errorUtils.ts`).
+- **`deniedMcpServers` wildcard patterns are case-insensitive** — `urlPatternToRegex` now compiles with the `i` flag. URL schemes and hostnames are case-insensitive per RFC 3986, so a denylist entry with a `*://` scheme wildcard previously failed to match `HTTPS://API.Example.com` and admins' policy could be bypassed by varying case. Case-insensitivity is slightly broader than strict HTTP (it covers the path too) — that's the safer direction for a denylist (`src/services/mcp/config.ts`).
+- **Policy refusal errors include the API Request ID** — `getErrorMessageIfRefusal` now takes an optional `requestId` and appends `(Request ID: …)` to the user-facing message; the streaming call site in `claude.ts` passes `streamRequestId` through. Users hitting a content-policy refusal that looks wrong can now copy the ID directly into a support ticket without grepping for it in `--debug` output (`src/services/api/errors.ts`, `src/services/api/claude.ts`).
+- **`claude_code.pull_request.count` OTel metric counts PRs/MRs created via MCP tools** — added `trackMcpPrCreate(toolName)` and `isMcpPrCreateToolName(toolName)` helpers in `gitOperationTracking.ts`. The regex `(?:^|_)(create[_-]?pull[_-]?request|create[_-]?merge[_-]?request|create[_-]?pr)$` matches the convention used by the major Git-host MCP servers (`mcp__github__create_pull_request`, `mcp__gitlab__create_merge_request`, `mcp__bitbucket__create_pull_request`, and per-org variants like `mcp__github_acme__create_pull_request`). Called from `toolExecution.ts` on successful MCP-tool invocations only (`src/tools/shared/gitOperationTracking.ts`, `src/services/tools/toolExecution.ts`).
+- **Bumped local source version to `2.1.129`** (from `2.1.128`) — `package.json` and `preload.ts` MACRO.
+
+### Not applied (upstream-only or out of scope)
+
+- `--plugin-url <url>` for fetching `.zip` plugin archives — the local plugin loader doesn't have the URL-fetch / archive-extract dispatch upstream relies on; `--plugin-dir` is the only entry point here.
+- `CLAUDE_CODE_PACKAGE_MANAGER_AUTO_UPDATE` (Homebrew / WinGet upgrade-in-background-then-prompt-restart) — package-manager-driven update flow lives in installer/auto-update code not surfaced in this mirror.
+- Plugin manifests: `themes` / `monitors` declared under `experimental: { … }` with a warning from `claude plugin validate` — `PluginManifestSchema` here does not yet expose those keys, so there's no migration to warn about.
+- Gateway `/v1/models` discovery now opt-in via `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1` — the discovery path was upstream-only in 2.1.126–128 and wasn't ported to this mirror; nothing to gate.
+- `Ctrl+R` history picker defaulting to all-projects / all-sessions (Ctrl+S to narrow) — Ink history-picker UI in obfuscated source.
+- `skillOverrides` (`off` / `user-invocable-only` / `name-only`) — setting not present in this mirror's settings schema.
+- `/clear` resetting terminal tab title; `/rename` chip surviving overlays; agent panel below prompt; `/context` ASCII grid dump; `/agents` Library arrow nav; `/branch` session-id in success message; bold headers + keycap/ZWJ/skin-tone emoji truncation; `/agents` Library arrow nav; external-editor Ctrl+G blanking conversation; `/clear` in VSCode — Ink rendering / commands behind compiled UI code.
+- Server-managed settings policy not applying for OAuth credentials lacking `user:inference` scope; OAuth refresh race after wake-from-sleep; 1-hour prompt cache TTL silent downgrade; cache-miss false positive after `/clear` or compaction; harmless WebSocket warning logged as error in `--debug` voice mode — auth / streaming / cache / voice internals in obfuscated source.
+- `Bash(mkdir *)` / `Bash(touch *)` allow rules not honoured for in-project paths — the in-project-path matcher these rules expect isn't part of this mirror's Bash permission classifier.
+
+---
+
 ## 2.1.128 — May 4, 2026
 
 Folds the user-facing, tractable subset of upstream `2.1.128` (2.1.127 was a one-line hotfix that doesn't reproduce here).

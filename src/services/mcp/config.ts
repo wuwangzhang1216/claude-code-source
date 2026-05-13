@@ -337,13 +337,22 @@ export function dedupClaudeAiMcpServers(
  *   "https://example.com/*" matches "https://example.com/api/v1"
  *   "https://*.example.com/*" matches "https://api.example.com/path"
  *   "https://example.com:*\/*" matches any port
+ *
+ * Upstream 2.1.129: pattern matching is case-insensitive. URL schemes and
+ * hostnames are case-insensitive per RFC 3986, so a denylist pattern with
+ * `*://` (scheme wildcard) was previously misbehaving against e.g.
+ * `HTTPS://API.Example.com` and the admin's policy entry could be bypassed
+ * by varying case. Whole-pattern case-insensitivity is slightly broader
+ * than strict HTTP semantics (it makes the path case-insensitive too) but
+ * that's the safe direction for a denylist — bypass-resistance beats
+ * letter-perfect case fidelity here.
  */
 function urlPatternToRegex(pattern: string): RegExp {
   // Escape regex special characters except *
   const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&')
   // Replace * with regex equivalent (match any characters)
   const regexStr = escaped.replace(/\*/g, '.*')
-  return new RegExp(`^${regexStr}$`)
+  return new RegExp(`^${regexStr}$`, 'i')
 }
 
 /**

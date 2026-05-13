@@ -116,6 +116,42 @@ function sanitizeMessageHTML(message: string): string {
 }
 
 /**
+ * Upstream 2.1.129: when an APIError carries a body the SDK couldn't
+ * pretty-print, `error.message` ends up as the full JSON-stringified body
+ * (e.g. `400 {"type":"error","error":{"type":"invalid_request_error",
+ * "message":"…"}}`). The bare JSON dump in the assistant transcript is
+ * useless to users; pull out the inner human-readable message instead.
+ *
+ * Conservative: only match when we recognise an `{ ..., "error": { "message"
+ * } }`-shaped JSON body wrapped in optional status/method/path noise.
+ * Anything else falls through to the original message untouched.
+ */
+function extractInlineJsonErrorMessage(message: string): string | null {
+  // Find the first '{' and try to parse from there to the end of the string.
+  const braceIdx = message.indexOf('{')
+  if (braceIdx < 0) return null
+  const jsonSlice = message.slice(braceIdx)
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(jsonSlice)
+  } catch {
+    return null
+  }
+  if (!parsed || typeof parsed !== 'object') return null
+  const candidate =
+    (parsed as { error?: { message?: string; error?: { message?: string } } })
+      .error
+  if (!candidate || typeof candidate !== 'object') return null
+  // Standard Anthropic shape: { error: { error: { message } } }
+  const deepMsg = candidate.error?.message
+  if (typeof deepMsg === 'string' && deepMsg.length > 0) return deepMsg
+  // Bedrock shape: { error: { message } }
+  const msg = candidate.message
+  if (typeof msg === 'string' && msg.length > 0) return msg
+  return null
+}
+
+/**
  * Detects if an error message contains HTML content (e.g., CloudFlare error pages)
  * and returns a user-friendly message instead
  */
@@ -126,6 +162,11 @@ export function sanitizeAPIError(apiError: APIError): string {
     // TODO: figure out why
     return ''
   }
+  // Strip embedded JSON body before HTML sanitization — the JSON body itself
+  // may contain HTML inside a string field, but the user wants the message,
+  // not the encoded blob.
+  const jsonExtracted = extractInlineJsonErrorMessage(message)
+  if (jsonExtracted) return sanitizeMessageHTML(jsonExtracted)
   return sanitizeMessageHTML(message)
 }
 

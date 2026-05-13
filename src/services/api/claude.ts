@@ -2301,6 +2301,7 @@ async function* queryModel(
             const refusalMessage = getErrorMessageIfRefusal(
               part.delta.stop_reason,
               options.model,
+              streamRequestId,
             )
             if (refusalMessage) {
               yield refusalMessage
