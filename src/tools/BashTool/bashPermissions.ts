@@ -1763,6 +1763,23 @@ export async function bashToolHasPermission(
     // fall through to ask if no deny matched — don't downgrade deny to ask.
     const earlyExit = checkEarlyExitDeny(input, appState.toolPermissionContext)
     if (earlyExit !== null) return earlyExit
+    // Sandbox auto-allow: shell expansions ($VAR, $(cmd), backticks, etc.)
+    // tokenize as too-complex but are safe under sandbox containment. Run
+    // the same auto-allow checks (explicit deny/ask, dangerous rm) so these
+    // commands aren't blocked behind an ask prompt that adds no safety.
+    if (
+      SandboxManager.isSandboxingEnabled() &&
+      SandboxManager.isAutoAllowBashIfSandboxedEnabled() &&
+      shouldUseSandbox(input)
+    ) {
+      const sandboxAutoAllowResult = checkSandboxAutoAllow(
+        input,
+        appState.toolPermissionContext,
+      )
+      if (sandboxAutoAllowResult.behavior !== 'passthrough') {
+        return sandboxAutoAllowResult
+      }
+    }
     const decisionReason: PermissionDecisionReason = {
       type: 'other' as const,
       reason: astResult.reason,

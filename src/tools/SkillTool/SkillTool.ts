@@ -482,6 +482,13 @@ export const SkillTool: Tool<InputSchema, Output, Progress> = buildTool({
         const prefix = normalizedRule.slice(0, -2) // Remove ':*'
         return commandName.startsWith(prefix)
       }
+      // Trailing-' *' prefix match (Bash(ls *) style): matches the skill
+      // name itself or any further-qualified form starting with the prefix
+      // followed by a space (e.g. "review *" matches "review" and "review pr").
+      if (normalizedRule.endsWith(' *')) {
+        const prefix = normalizedRule.slice(0, -2)
+        return commandName === prefix || commandName.startsWith(prefix + ' ')
+      }
       return false
     }
 

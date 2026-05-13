@@ -2,6 +2,57 @@
 
 All notable changes tracked here. This is a local/educational source mirror of Claude Code, not an official release stream.
 
+## 2.1.139 — May 11, 2026
+
+Folds the user-facing, tractable subset of upstream `2.1.139`. New top-level commands (`/goal`, `/scroll-speed`, `claude agents`, `claude plugin details`) and the bulk of the Ink/UI rendering fixes (cursor blink, transcript shortcuts, scroll behavior, CJK/emoji width, ProgressBar, hyperlink theme contrast, multi-image paste, mouse-wheel scrolling) need infrastructure this mirror doesn't reproduce and stayed unapplied.
+
+### Applied in this local source tree
+
+- **Compaction prompt instructs the model to preserve sensitive user instructions verbatim** — the "Primary Request and Intent" section in `BASE_COMPACT_PROMPT`, `PARTIAL_COMPACT_PROMPT`, and `PARTIAL_COMPACT_UP_TO_PROMPT` now explicitly tells the summarizer to copy security constraints, do-not-do rules, behavioral directives, and credentials/access policies into the summary unchanged, so guardrails continue to be enforced after `/compact` (`src/services/compact/prompt.ts`).
+- **`autoAllowBashIfSandboxed` now auto-approves commands with shell expansions** — `$VAR` / `$(cmd)` / backtick / control-flow commands tokenize as `too-complex` from the tree-sitter security parser, which short-circuited to `behavior: 'ask'` before the sandbox auto-allow check ran. The too-complex branch now consults `checkSandboxAutoAllow` (which still respects explicit deny/ask rules and the dangerous-`rm` containment check) before falling through to ask, matching the simple-parse branch's flow (`src/tools/BashTool/bashPermissions.ts`).
+- **Settings hot-reload detects edits to symlinked `~/.claude/settings.json`** — `getWatchTargets` now resolves each settings path via `fs.promises.realpath`. When the target differs from the symlink (Dropbox / dotfiles / external syncs), the target's directory is added to chokidar's watch set and the realpath is registered in `symlinkTargetToSource` so change events on the realpath route back to the symlink's logical `SettingSource` (`src/utils/settings/changeDetector.ts`).
+- **`Skill(name *)` permission rules work as a prefix match** — added a third matcher branch alongside the existing exact and `name:*` forms. Trailing-` *` rules now match the bare skill name and any space-extended form (`Skill(review *)` covers both `review` and `review pr`), mirroring `Bash(ls *)` behaviour. Order is exact → `:*` → ` *` so existing rule semantics are unchanged (`src/tools/SkillTool/SkillTool.ts`).
+- **Two-file diff snippets stop over-reporting truncated lines by one** — the truncation cut already aligns on a `\n` boundary, so the `+1` borrowed from `BashTool`'s arbitrary-byte truncation (which compensates for a partial trailing line that doesn't exist when cutting on a newline) inflated the hidden-line count. Removed for line-boundary cuts (`src/tools/FileEditTool/utils.ts`).
+- **Skill argument substitution escapes regex metacharacters in argument names** — frontmatter `arguments: foo.bar` previously compiled into `new RegExp('\\$foo.bar(?![\\[\\w])')`, where `.` matched any character. Names are now escaped before the regex is built, and the replacement is passed via a function callback so `$&` / `$1` patterns in argument values aren't re-interpreted as backreferences (`src/utils/argumentSubstitution.ts`).
+- **MCP stdio servers receive `CLAUDE_PROJECT_DIR` in their environment** — matches the hook contract introduced in earlier releases. Plugin configs can now also reference `${CLAUDE_PROJECT_DIR}` literally inside `command` / `args` and the placeholder is substituted at spawn time (no shell needed) — useful for plugin MCP servers whose binary lives inside the user's project (`src/services/mcp/client.ts`).
+- **`/model` picker "Default" row reflects `ANTHROPIC_DEFAULT_OPUS_MODEL` / `ANTHROPIC_DEFAULT_SONNET_MODEL` overrides** — `getClaudeAiUserDefaultModelDescription` previously hard-coded "Opus 4.6" / "Sonnet 4.6" labels for Max/Team Premium and PAYG 1P, masking any env override. The label now honors `ANTHROPIC_DEFAULT_*_MODEL_NAME` (falling back to `renderModelName(getDefaultOpusModel())` / `renderModelName(getDefaultSonnetModel())`) when an override is set (`src/utils/model/model.ts`).
+- **Spurious "stream idle timeout" 5 minutes after a response completed** — `queryModel` allocated the streaming-watchdog `setTimeout` handles inside the inner try block, so `clearStreamIdleTimers()` was only reachable from the inner catch/finally. When the generator was cancelled before entering the stream loop (consumer `.return()`, abort signal during stream creation, or an exception bubbling out of the outer catch), the timer kept running and logged a watchdog fire long after the response was already done. Hoisted `outerStream*Timer` refs above the outer try, mirrored each `setTimeout` into them, and added `clearOuterStreamIdleTimers()` to the outer `finally` as a belt-and-suspenders clear (`src/services/api/claude.ts`).
+- **`@server:` autocomplete no longer surfaces resources from disconnected servers** — `useTypeahead` now derives a `connectedServerNames` `Set` from `s.mcp.clients` (filtered to `type === 'connected'`) and threads it through `generateUnifiedSuggestions`. Resources owned by absent / failed / disconnected servers are filtered out before scoring, so stale entries that linger in `s.mcp.resources` until the next dispose pass no longer pollute results (`src/hooks/unifiedSuggestions.ts`, `src/hooks/useTypeahead.tsx`).
+- **Bumped local source version to `2.1.139`** (from `2.1.138`) — `package.json` and `preload.ts` MACRO.
+
+### Not applied (upstream-only or out of scope)
+
+- **New top-level commands (`/goal`, `/scroll-speed`, `claude agents`, `claude plugin details`)** — each needs nontrivial Ink/UI infrastructure (overlay panel for `/goal`'s live elapsed/turns/tokens; mouse-wheel preview UI for `/scroll-speed`; session aggregation across processes for the agent view; component-inventory + per-session token cost projection for `plugin details`).
+- **Transcript view navigation (`?`, `{` / `}`, `v` shortcuts)** — Ink keystroke routing inside the transcript renderer is out of scope.
+- **Hook `args: string[]` exec form** — adding the schema field is trivial, but it would change the hook spawn path from `exec` (shell) to `spawn` (direct argv) and depends on the hook-runner internals that the local fork already diverges from in subprocess env handling.
+- **Hook `continueOnBlock` for PostToolUse** — needs hook-protocol semantics changes (feeding the rejection reason back to the turn) plus per-hook config plumbing into `executeToolHooks`.
+- **`/mcp` Reconnect picking up `.mcp.json` edits without a restart + HTTP status / URL on failure** — requires reloading server configs in-place and surfacing transport status codes that the local mirror's `useManageMCPConnections` flow doesn't expose.
+- **`/context all` per-skill token estimates using model tokenizer + rounded** — depends on the tokenizer-cost UI feature that isn't wired in this mirror.
+- **`claude plugin install <name>@<marketplace>` auto-refreshing the marketplace before reporting not found** — would change marketplace fetch + retry semantics across an obfuscated section.
+- **`/plugin installed-plugin details` clean rendering of hook event names + MCP server names** — Ink rendering pass.
+- **`/context` showing the providing plugin's name for plugin-sourced skills** — Ink rendering field plumbing only.
+- **Remote MCP reconnect retry on transient failures now enabled for all users** — the local mirror does not gate it; this is a no-op here.
+- **Subagent `x-claude-code-agent-id` / `x-claude-code-parent-agent-id` HTTP headers + `agent_id` / `parent_agent_id` OTEL span attributes** — would touch the API request layer and span emission across the agent execution graph; defer until we can audit the full propagation chain.
+- **Disabling Remote Control / `/schedule` / claude.ai MCP connectors / notification preferences when `ANTHROPIC_API_KEY` / `apiKeyHelper` / `ANTHROPIC_AUTH_TOKEN` is set** — broad conditional gate spanning several services; the safer pass is one change at a time.
+- **Expired credentials + `forceRemoteSettingsRefresh` policy blocking auth login/logout/status** — auth refresh + remote-settings cache deadlock in obfuscated source.
+- **Hook writes corrupting on-screen interactive prompts (hooks now run without terminal access)** — child stdio handling change that ripples through hook spawn + REPL render coordination.
+- **Capping SSE response bodies at 16 MB per frame for HTTP/SSE MCP transports** — obfuscated SSE transport layer.
+- **Settings hot-reload edge: symlinked drop-in directory (`managed-settings.d/`)** — only the file-level symlink case is applied; symlinked drop-in directories would need the same realpath treatment for the drop-in dir itself.
+- **`claude_code.active_time.total` OTEL metric not emitted in `--print` mode** — `--print` path metric registration lives in code we don't fully exercise here.
+- **`claude plugin update` not preserving cross-plugin symlinks inside a marketplace** — plugin sync layer.
+- **Plugin dependency stale count when manifest name differs from source identifier** — plugin-dep accounting bug; needs deeper rework of the dep graph than a localized fix supports.
+- **Insights Time-of-Day chart skew on unparseable timestamps; `--print` mode metric** — Insights renderer.
+- **Keybindings with only cmd/super/win modifier flagged as unparseable** — keybinding parser allows-the-modifier-alone change; risk of regressing real parse errors.
+- **Cache-dir-unwritable silent exit when 10+ MCP servers configured** — depends on early-startup MCP cache initialization that's mostly opaque here.
+- **Pasting / dropping multiple images only inserting the last one** — Ink paste handler internals.
+- **Hyperlink color adapting to active theme on dark themes** — theme context propagation into the link renderer.
+- **Model picker redundant "Current model" row for 3P opus alias; legacy Opus picker entry for PAYG 3P resolving to the default entry** — both depend on the 3P provider catalog reading logic and the picker option-merging code path.
+- **All other Ink / UI rendering bugs** (cursor blink on tab names + list pointers, transcript letter shortcuts after mouse click, Bash-mode up-arrow history repeating first entry, mouse-wheel speed in Cursor / VS Code, scroll behavior in Windows Terminal + VS Code background sessions, border-embedded CJK / emoji overflow, fuzzy-match highlight splitting emoji, ProgressBar fractional cell rendering, two-file diff over-truncation [also covered above], Grep result Windows drive-letter relativization).
+- **Task polling / `fs.watch` being resurrected when last subscriber leaves while a fetch is in flight** — task polling lifecycle change in a subscriber ref-counting layer this mirror doesn't fully reproduce.
+- **`[VSCode] Cmd/Ctrl+Shift+T` reopens recently closed session tab** — extension-only.
+
+---
+
 ## 2.1.138 — May 9, 2026
 
 Single-bump pulls the user-facing, tractable subset of upstream `2.1.136`. Upstream `2.1.137` was a VS Code Windows hotfix and `2.1.138` was "Internal fixes" — neither reproduces here.

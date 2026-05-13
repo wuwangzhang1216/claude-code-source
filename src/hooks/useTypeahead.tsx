@@ -385,6 +385,16 @@ export function useTypeahead({
   }, [commands]);
   const [maxColumnWidth, setMaxColumnWidth] = useState<number | undefined>(undefined);
   const mcpResources = useAppState(s => s.mcp.resources);
+  // Set of currently-connected MCP server names. Used to filter out resources
+  // from servers that have since disconnected — their entries can linger in
+  // `s.mcp.resources` until the next reconnect/dispose pass.
+  const connectedServerNames = useAppState(s => {
+    const names = new Set<string>();
+    for (const client of s.mcp.clients) {
+      if (client.type === 'connected') names.add(client.name);
+    }
+    return names;
+  });
   const store = useAppStateStore();
   const promptSuggestion = useAppState(s => s.promptSuggestion);
   // PromptInput hides suggestion ghost text in teammate view — mirror that
@@ -452,7 +462,7 @@ export function useTypeahead({
   // Expensive async operation to fetch file/resource suggestions
   const fetchFileSuggestions = useCallback(async (searchToken: string, isAtSymbol = false): Promise<void> => {
     latestSearchTokenRef.current = searchToken;
-    const combinedItems = await generateUnifiedSuggestions(searchToken, mcpResources, agents, isAtSymbol);
+    const combinedItems = await generateUnifiedSuggestions(searchToken, mcpResources, agents, isAtSymbol, connectedServerNames);
     // Discard stale results if a newer query was initiated while waiting
     if (latestSearchTokenRef.current !== searchToken) {
       return;
@@ -475,7 +485,7 @@ export function useTypeahead({
     }));
     setSuggestionType(combinedItems.length > 0 ? 'file' : 'none');
     setMaxColumnWidth(undefined); // No fixed width for file suggestions
-  }, [mcpResources, setSuggestionsState, setSuggestionType, setMaxColumnWidth, agents]);
+  }, [mcpResources, setSuggestionsState, setSuggestionType, setMaxColumnWidth, agents, connectedServerNames]);
 
   // Pre-warm the file index on mount so the first @-mention doesn't block.
   // The build runs in background with ~4ms event-loop yields, so it doesn't
@@ -1115,7 +1125,7 @@ export function useTypeahead({
           // If token starts with @, search without the @ prefix
           const isAtSymbol = completionInfo.token.startsWith('@');
           const searchToken = isAtSymbol ? completionInfo.token.substring(1) : completionInfo.token;
-          suggestionItems = await generateUnifiedSuggestions(searchToken, mcpResources, agents, isAtSymbol);
+          suggestionItems = await generateUnifiedSuggestions(searchToken, mcpResources, agents, isAtSymbol, connectedServerNames);
         } else {
           suggestionItems = [];
         }
@@ -1131,7 +1141,7 @@ export function useTypeahead({
         setMaxColumnWidth(undefined);
       }
     }
-  }, [suggestions, selectedSuggestion, input, suggestionType, commands, mode, onInputChange, setCursorOffset, onSubmit, clearSuggestions, cursorOffset, updateSuggestions, mcpResources, setSuggestionsState, agents, debouncedFetchFileSuggestions, debouncedFetchSlackChannels, effectiveGhostText]);
+  }, [suggestions, selectedSuggestion, input, suggestionType, commands, mode, onInputChange, setCursorOffset, onSubmit, clearSuggestions, cursorOffset, updateSuggestions, mcpResources, setSuggestionsState, agents, debouncedFetchFileSuggestions, debouncedFetchSlackChannels, effectiveGhostText, connectedServerNames]);
 
   // Handle enter key press - apply and execute suggestions
   const handleEnter = useCallback(() => {

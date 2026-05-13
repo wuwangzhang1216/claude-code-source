@@ -40,7 +40,11 @@ import mapValues from 'lodash-es/mapValues.js'
 import memoize from 'lodash-es/memoize.js'
 import zipObject from 'lodash-es/zipObject.js'
 import pMap from 'p-map'
-import { getOriginalCwd, getSessionId } from '../../bootstrap/state.js'
+import {
+  getOriginalCwd,
+  getProjectRoot,
+  getSessionId,
+} from '../../bootstrap/state.js'
 import type { Command } from '../../commands.js'
 import { getOauthConfig } from '../../constants/oauth.js'
 import { PRODUCT_URL } from '../../constants/product.js'
@@ -959,16 +963,25 @@ export const connectToServer = memoize(
         transport = clientTransport
         logMCPDebug(name, `In-process Computer Use MCP server started`)
       } else if (serverRef.type === 'stdio' || !serverRef.type) {
+        // Make the stable project root available to MCP stdio servers (matches
+        // hooks' CLAUDE_PROJECT_DIR contract) and let plugin configs reference
+        // ${CLAUDE_PROJECT_DIR} inline in command/args without invoking a shell.
+        const projectDir = getProjectRoot()
+        const substituteProjectDir = (s: string): string =>
+          s.replace(/\$\{CLAUDE_PROJECT_DIR\}/g, () => projectDir)
+        const substitutedCommand = substituteProjectDir(serverRef.command)
+        const substitutedArgs = serverRef.args.map(substituteProjectDir)
         const finalCommand =
-          process.env.CLAUDE_CODE_SHELL_PREFIX || serverRef.command
+          process.env.CLAUDE_CODE_SHELL_PREFIX || substitutedCommand
         const finalArgs = process.env.CLAUDE_CODE_SHELL_PREFIX
-          ? [[serverRef.command, ...serverRef.args].join(' ')]
-          : serverRef.args
+          ? [[substitutedCommand, ...substitutedArgs].join(' ')]
+          : substitutedArgs
         transport = new StdioClientTransport({
           command: finalCommand,
           args: finalArgs,
           env: {
             ...subprocessEnv(),
+            CLAUDE_PROJECT_DIR: projectDir,
             ...serverRef.env,
           } as Record<string, string>,
           stderr: 'pipe', // prevents error output from the MCP server from printing to the UI

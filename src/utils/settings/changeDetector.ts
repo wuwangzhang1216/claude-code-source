@@ -1,5 +1,5 @@
 import chokidar, { type FSWatcher } from 'chokidar'
-import { stat } from 'fs/promises'
+import { realpath, stat } from 'fs/promises'
 import * as platformPath from 'path'
 import { getIsRemoteMode } from '../../bootstrap/state.js'
 import { registerCleanup } from '../cleanupRegistry.js'
@@ -69,6 +69,10 @@ let initialized = false
 let disposed = false
 const pendingDeletions = new Map<string, ReturnType<typeof setTimeout>>()
 const settingsChanged = createSignal<[source: SettingSource]>()
+// Maps realpath of a symlinked settings file back to its logical source, so
+// edits applied to the target (where the editor actually writes) still route
+// to the correct SettingSource.
+let symlinkTargetToSource: Map<string, SettingSource> = new Map()
 
 // Test overrides for timing constants
 let testOverrides: {
@@ -162,6 +166,7 @@ export function dispose(): Promise<void> {
   lastMdmSnapshot = null
   clearInternalWrites()
   settingsChanged.clear()
+  symlinkTargetToSource = new Map()
   const w = watcher
   watcher = null
   return w ? w.close() : Promise.resolve()
@@ -185,6 +190,8 @@ async function getWatchTargets(): Promise<{
   // Map from directory to all potential settings files in that directory
   const dirToSettingsFiles = new Map<string, Set<string>>()
   const dirsWithExistingFiles = new Set<string>()
+  // Reset symlink target map for this initialize() pass
+  const newSymlinkTargets = new Map<string, SettingSource>()
 
   for (const source of SETTING_SOURCES) {
     // Skip flagSettings - they're provided via CLI and won't change during the session.
@@ -216,7 +223,29 @@ async function getWatchTargets(): Promise<{
     } catch {
       // File doesn't exist, that's fine
     }
+
+    // If the settings file is a symlink, editors typically write to the
+    // target. The directory containing the symlink itself may not see
+    // filesystem events when the target changes, so additionally watch the
+    // target's directory and treat the target path as belonging to the same
+    // logical source.
+    try {
+      const resolved = platformPath.normalize(await realpath(path))
+      if (resolved !== platformPath.normalize(path)) {
+        const targetDir = platformPath.dirname(resolved)
+        if (!dirToSettingsFiles.has(targetDir)) {
+          dirToSettingsFiles.set(targetDir, new Set())
+        }
+        dirToSettingsFiles.get(targetDir)!.add(resolved)
+        dirsWithExistingFiles.add(targetDir)
+        newSymlinkTargets.set(resolved, source)
+      }
+    } catch {
+      // Settings file doesn't exist or isn't a symlink — nothing to do.
+    }
   }
+
+  symlinkTargetToSource = newSymlinkTargets
 
   // For watched directories, include ALL potential settings file paths
   // This ensures files created after init are also detected
@@ -368,6 +397,11 @@ function getSourceForPath(path: string): SettingSource | undefined {
   if (normalizedPath.startsWith(dropInDir + platformPath.sep)) {
     return 'policySettings'
   }
+
+  // Symlink targets — edits made to the realpath of a settings symlink route
+  // back to the symlink's logical source.
+  const symlinkSource = symlinkTargetToSource.get(normalizedPath)
+  if (symlinkSource) return symlinkSource
 
   return SETTING_SOURCES.find(
     source => getSettingsFilePathForSource(source) === normalizedPath,

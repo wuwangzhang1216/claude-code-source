@@ -113,10 +113,16 @@ export function substituteArguments(
     if (!name) continue
 
     // Match $name but not $name[...] or $nameXxx (word chars)
-    // Also ensure we match word boundaries to avoid partial matches
+    // Also ensure we match word boundaries to avoid partial matches.
+    // Escape regex metacharacters in the user-provided name so frontmatter
+    // values like "foo.bar" don't compile into invalid or surprising patterns.
+    const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const value = parsedArgs[i] ?? ''
     content = content.replace(
-      new RegExp(`\\$${name}(?![\\[\\w])`, 'g'),
-      parsedArgs[i] ?? '',
+      new RegExp(`\\$${escapedName}(?![\\[\\w])`, 'g'),
+      // Escape $ in the replacement so values containing $1, $&, etc. aren't
+      // re-interpreted as backreferences by String.prototype.replace.
+      () => value,
     )
   }
 

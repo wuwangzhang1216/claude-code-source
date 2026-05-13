@@ -1832,6 +1832,24 @@ async function* queryModel(
   let isFastModeRequest = isFastMode // Keep separate state as it may change if falling back
   let isAdvisorInProgress = false
 
+  // Hoisted so the outer finally can clear them on cancellation paths that
+  // bypass the inner try/finally (e.g. generator .return() before the stream
+  // loop is entered, or an exception thrown during stream creation). Without
+  // this, a stale watchdog setTimeout could fire long after the response
+  // completed and emit a spurious "stream idle timeout" log.
+  let outerStreamIdleWarningTimer: ReturnType<typeof setTimeout> | null = null
+  let outerStreamIdleTimer: ReturnType<typeof setTimeout> | null = null
+  function clearOuterStreamIdleTimers(): void {
+    if (outerStreamIdleWarningTimer !== null) {
+      clearTimeout(outerStreamIdleWarningTimer)
+      outerStreamIdleWarningTimer = null
+    }
+    if (outerStreamIdleTimer !== null) {
+      clearTimeout(outerStreamIdleTimer)
+      outerStreamIdleTimer = null
+    }
+  }
+
   try {
     queryCheckpoint('query_client_creation_start')
     const generator = withRetry(
@@ -1950,6 +1968,10 @@ async function* queryModel(
         clearTimeout(streamIdleTimer)
         streamIdleTimer = null
       }
+      // Keep the outer-scope refs in sync so the outer finally is a no-op
+      // after we've already cleared here.
+      outerStreamIdleWarningTimer = null
+      outerStreamIdleTimer = null
     }
     function resetStreamIdleTimer(): void {
       clearStreamIdleTimers()
@@ -1967,6 +1989,7 @@ async function* queryModel(
         STREAM_IDLE_WARNING_MS,
         STREAM_IDLE_WARNING_MS,
       )
+      outerStreamIdleWarningTimer = streamIdleWarningTimer
       streamIdleTimer = setTimeout(() => {
         streamIdleAborted = true
         streamWatchdogFiredAt = performance.now()
@@ -1984,6 +2007,7 @@ async function* queryModel(
         })
         releaseStreamResources()
       }, STREAM_IDLE_TIMEOUT_MS)
+      outerStreamIdleTimer = streamIdleTimer
     }
     resetStreamIdleTimer()
 
@@ -2873,6 +2897,10 @@ async function* queryModel(
     // Without this, the Response object's native TLS/socket buffers leak
     // until the generator itself is GC'd (see GH #32920).
     releaseStreamResources()
+    // Belt-and-suspenders clear: if the stream was cancelled (consumer .return
+    // or external abort) before the inner try/finally cleared the watchdog,
+    // a stale setTimeout would still fire and log a spurious idle-timeout.
+    clearOuterStreamIdleTimers()
 
     // Non-streaming fallback cost: the streaming path tracks cost in the
     // message_delta handler before any yield. Fallback pushes to newMessages

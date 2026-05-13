@@ -287,10 +287,24 @@ export function getClaudeAiUserDefaultModelDescription(
   fastMode = false,
 ): string {
   if (isMaxSubscriber() || isTeamPremiumSubscriber()) {
+    // Honor ANTHROPIC_DEFAULT_OPUS_MODEL override in the "Default" picker row
+    // — show the overridden model name rather than the canonical Opus 4.6 label.
+    if (process.env.ANTHROPIC_DEFAULT_OPUS_MODEL) {
+      const overrideName =
+        process.env.ANTHROPIC_DEFAULT_OPUS_MODEL_NAME ??
+        renderModelName(getDefaultOpusModel())
+      return `${overrideName} · Most capable for complex work${fastMode ? getOpus46PricingSuffix(true) : ''}`
+    }
     if (isOpus1mMergeEnabled()) {
       return `Opus 4.6 with 1M context · Most capable for complex work${fastMode ? getOpus46PricingSuffix(true) : ''}`
     }
     return `Opus 4.6 · Most capable for complex work${fastMode ? getOpus46PricingSuffix(true) : ''}`
+  }
+  if (process.env.ANTHROPIC_DEFAULT_SONNET_MODEL) {
+    const overrideName =
+      process.env.ANTHROPIC_DEFAULT_SONNET_MODEL_NAME ??
+      renderModelName(getDefaultSonnetModel())
+    return `${overrideName} · Best for everyday tasks`
   }
   return 'Sonnet 4.6 · Best for everyday tasks'
 }

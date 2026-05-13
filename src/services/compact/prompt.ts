@@ -65,7 +65,7 @@ ${DETAILED_ANALYSIS_INSTRUCTION_BASE}
 
 Your summary should include the following sections:
 
-1. Primary Request and Intent: Capture all of the user's explicit requests and intents in detail
+1. Primary Request and Intent: Capture all of the user's explicit requests and intents in detail. Preserve verbatim any sensitive user instructions — security constraints, do-not-do rules, behavioral directives, credentials/access policies, or other guardrails — so they continue to be honored after compaction.
 2. Key Technical Concepts: List all important technical concepts, technologies, and frameworks discussed.
 3. Files and Code Sections: Enumerate specific files and code sections examined, modified, or created. Pay special attention to the most recent messages and include full code snippets where applicable and include a summary of why this file read or edit is important.
 4. Errors and fixes: List all errors that you ran into, and how you fixed them. Pay special attention to specific user feedback that you received, especially if the user told you to do something differently.
@@ -148,7 +148,7 @@ ${DETAILED_ANALYSIS_INSTRUCTION_PARTIAL}
 
 Your summary should include the following sections:
 
-1. Primary Request and Intent: Capture the user's explicit requests and intents from the recent messages
+1. Primary Request and Intent: Capture the user's explicit requests and intents from the recent messages. Preserve verbatim any sensitive user instructions — security constraints, do-not-do rules, behavioral directives, credentials/access policies, or other guardrails — so they continue to be honored after compaction.
 2. Key Technical Concepts: List important technical concepts, technologies, and frameworks discussed recently.
 3. Files and Code Sections: Enumerate specific files and code sections examined, modified, or created. Include full code snippets where applicable and include a summary of why this file read or edit is important.
 4. Errors and fixes: List errors encountered and how they were fixed.
@@ -211,7 +211,7 @@ ${DETAILED_ANALYSIS_INSTRUCTION_BASE}
 
 Your summary should include the following sections:
 
-1. Primary Request and Intent: Capture the user's explicit requests and intents in detail
+1. Primary Request and Intent: Capture the user's explicit requests and intents in detail. Preserve verbatim any sensitive user instructions — security constraints, do-not-do rules, behavioral directives, credentials/access policies, or other guardrails — so they continue to be honored after compaction.
 2. Key Technical Concepts: List important technical concepts, technologies, and frameworks discussed.
 3. Files and Code Sections: Enumerate specific files and code sections examined, modified, or created. Include full code snippets where applicable and include a summary of why this file read or edit is important.
 4. Errors and fixes: List errors encountered and how they were fixed.
