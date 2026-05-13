@@ -114,6 +114,14 @@ export function _resetTmuxControlModeProbeForTesting(): void {
  * env var flip. Env var, when explicitly set, still wins over the setting.
  */
 export function isFullscreenEnvEnabled(): boolean {
+  // Upstream 2.1.132: CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1 is the
+  // documented "keep me out of the alt-screen renderer no matter what"
+  // override. Layered above CLAUDE_CODE_NO_FLICKER so it wins over the
+  // setting and the ant default. Useful for users who want to keep the
+  // conversation in native terminal scrollback (copy/paste, scroll-up
+  // workflows) even when the renderer would otherwise pick fullscreen.
+  if (isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN))
+    return false
   // Explicit user opt-out always wins.
   if (isEnvDefinedFalsy(process.env.CLAUDE_CODE_NO_FLICKER)) return false
   // Explicit opt-in overrides auto-detection (escape hatch).

@@ -244,7 +244,21 @@ export async function handlePromptSubmit(
 
   // Handle local-jsx immediate commands (e.g., /config, /doctor)
   // Skip for remote bridge messages — slash commands from CCR clients are plain text
-  if (!skipSlashCommands && finalInput.trim().startsWith('/')) {
+  //
+  // Upstream 2.1.132: only parse as a slash command when the user actually
+  // typed the leading slash. If `finalInput` only starts with `/` because
+  // a pasted text reference expanded into a path/URL (e.g. pasting
+  // `/usr/local/bin/foo` as a fresh prompt expands `[Pasted text #1]` into
+  // a string beginning with `/`), the result was either silently swallowed
+  // by the slash-command lookup or surfaced as an "Unknown command" reply.
+  // The typed `input` is the source of truth for "did the user intend a
+  // command" — it's the raw user-typed prompt before paste expansion.
+  const userTypedSlash = input.trim().startsWith('/')
+  if (
+    !skipSlashCommands &&
+    userTypedSlash &&
+    finalInput.trim().startsWith('/')
+  ) {
     const trimmedInput = finalInput.trim()
     const spaceIndex = trimmedInput.indexOf(' ')
     const commandName =

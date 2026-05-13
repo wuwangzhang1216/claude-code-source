@@ -530,10 +530,20 @@ async function processUserInputBase(
 
   // Slash commands
   // Skip for remote bridge messages — input from CCR clients is plain text
+  //
+  // Upstream 2.1.132: also skip when the user *pasted* a value that starts
+  // with `/`. `inputString` is the post-expansion text; if the user typed
+  // nothing and pasted something like `/usr/local/bin/foo` the placeholder
+  // expands here into a string starting with `/` and was previously routed
+  // through `processSlashCommand`, which either swallowed the input
+  // silently or replied "Unknown command". Use `preExpansionInput` (the
+  // raw typed prompt) as the source of truth for "did the user actually
+  // type the leading slash".
   if (
     inputString !== null &&
     !effectiveSkipSlash &&
-    inputString.startsWith('/')
+    inputString.startsWith('/') &&
+    (preExpansionInput ?? inputString).trim().startsWith('/')
   ) {
     const { processSlashCommand } = await import('./processSlashCommand.js')
     const slashResult = await processSlashCommand(

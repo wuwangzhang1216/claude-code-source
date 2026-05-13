@@ -1,4 +1,5 @@
 import { isEnvTruthy } from './envUtils.js'
+import { getSessionId } from '../bootstrap/state.js'
 
 /**
  * Env vars to strip from subprocess environments when running inside GitHub
@@ -113,12 +114,33 @@ export function subprocessEnv(): NodeJS.ProcessEnv {
     ? {}
     : { AI_AGENT: 'claude_code' }
 
+  // Upstream 2.1.132: expose the current Claude Code session id to every
+  // subprocess (Bash, hooks, MCP stdio, LSP, shell snapshot) — matches the
+  // session_id that hooks already receive in their payload, so user scripts
+  // can correlate shell-side work with the parent session. May be undefined
+  // very early in startup before getSessionId is initialized; skip in that
+  // case so spawned children don't see the literal string "undefined".
+  const sessionId = getSessionId()
+  const sessionAttribution: NodeJS.ProcessEnv = sessionId
+    ? { CLAUDE_CODE_SESSION_ID: sessionId }
+    : {}
+
   if (!isEnvTruthy(process.env.CLAUDE_CODE_SUBPROCESS_ENV_SCRUB)) {
-    const merged = { ...process.env, ...proxyEnv, ...agentAttribution }
+    const merged = {
+      ...process.env,
+      ...proxyEnv,
+      ...agentAttribution,
+      ...sessionAttribution,
+    }
     stripOtelVars(merged)
     return merged
   }
-  const env = { ...process.env, ...proxyEnv, ...agentAttribution }
+  const env = {
+    ...process.env,
+    ...proxyEnv,
+    ...agentAttribution,
+    ...sessionAttribution,
+  }
   for (const k of GHA_SUBPROCESS_SCRUB) {
     delete env[k]
     // GitHub Actions auto-creates INPUT_<NAME> for `with:` inputs, duplicating

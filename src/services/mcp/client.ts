@@ -1766,10 +1766,30 @@ export const fetchToolsForClient = memoizeWithLRU(
         return []
       }
 
-      const result = (await client.client.request(
-        { method: 'tools/list' },
-        ListToolsResultSchema,
-      )) as ListToolsResult
+      // Upstream 2.1.132: some MCP servers establish the session successfully
+      // (so client.type === 'connected') but transiently fail their first
+      // tools/list (slow tool registry warm-up, racy initialization). Retry
+      // once with a short backoff so a one-shot blip doesn't silently leave
+      // the server showing 0 tools forever. Persistent failures still throw,
+      // and the outer catch logs a clear "Failed to fetch tools" — the UI
+      // surfaces this as "connected · tools fetch failed" in /mcp.
+      let result: ListToolsResult
+      try {
+        result = (await client.client.request(
+          { method: 'tools/list' },
+          ListToolsResultSchema,
+        )) as ListToolsResult
+      } catch (firstError) {
+        logMCPDebug(
+          client.name,
+          `tools/list failed (attempt 1): ${errorMessage(firstError)}; retrying once`,
+        )
+        await new Promise(resolve => setTimeout(resolve, 250))
+        result = (await client.client.request(
+          { method: 'tools/list' },
+          ListToolsResultSchema,
+        )) as ListToolsResult
+      }
 
       // Sanitize tool data from MCP server
       const toolsToProcess = recursivelySanitizeUnicode(result.tools)

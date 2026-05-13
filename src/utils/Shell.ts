@@ -5,11 +5,7 @@ import memoize from 'lodash-es/memoize.js'
 import { isAbsolute, resolve } from 'path'
 import { join as posixJoin } from 'path/posix'
 import { logEvent } from 'src/services/analytics/index.js'
-import {
-  getOriginalCwd,
-  getSessionId,
-  setCwdState,
-} from '../bootstrap/state.js'
+import { getOriginalCwd, setCwdState } from '../bootstrap/state.js'
 import { generateTaskId } from '../Task.js'
 import { pwd } from './cwd.js'
 import { logForDebugging } from './debug.js'
@@ -320,11 +316,6 @@ export async function exec(
         GIT_EDITOR: 'true',
         CLAUDECODE: '1',
         ...envOverrides,
-        ...(process.env.USER_TYPE === 'ant'
-          ? {
-              CLAUDE_CODE_SESSION_ID: getSessionId(),
-            }
-          : {}),
       },
       cwd,
       stdio: usePipeMode

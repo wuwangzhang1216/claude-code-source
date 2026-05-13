@@ -391,13 +391,29 @@ export function getCacheControl({
  * TTLs when GrowthBook's disk cache updates mid-request.
  */
 function should1hCacheTTL(querySource?: QuerySource): boolean {
+  const provider = getAPIProvider()
   // 3P Bedrock users get 1h TTL when opted in via env var — they manage their own billing
   // No GrowthBook gating needed since 3P users don't have GrowthBook configured
   if (
-    getAPIProvider() === 'bedrock' &&
+    provider === 'bedrock' &&
     isEnvTruthy(process.env.ENABLE_PROMPT_CACHING_1H_BEDROCK)
   ) {
     return true
+  }
+
+  // Upstream 2.1.132: Bedrock and Vertex reject the `cache_control: { ttl: '1h' }`
+  // field with 400 errors because their proxies don't accept the beta TTL
+  // extension yet. Previously a first-party-eligible user (USER_TYPE=ant or
+  // claude.ai subscriber not over their plan) running against Bedrock or
+  // Vertex would still pick up the 1h TTL via the eligibility-and-allowlist
+  // branch below and get every request rejected.
+  //
+  // Gate 3P providers off the 1h branch entirely. Bedrock keeps its dedicated
+  // ENABLE_PROMPT_CACHING_1H_BEDROCK opt-in above (so the env var is the
+  // single way to enable it on Bedrock), and Vertex/Foundry have no equivalent
+  // — they just stay on the default 5-minute TTL.
+  if (provider !== 'firstParty') {
+    return false
   }
 
   // Latch eligibility in bootstrap state for session stability — prevents

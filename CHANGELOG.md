@@ -2,6 +2,39 @@
 
 All notable changes tracked here. This is a local/educational source mirror of Claude Code, not an official release stream.
 
+## 2.1.132 — May 6, 2026
+
+Folds the user-facing, tractable subset of upstream `2.1.132` (2.1.130 was a VS Code Windows hotfix + Mantle endpoint x-api-key — neither reproduces here; 2.1.131 was an internal patch).
+
+### Applied in this local source tree
+
+- **`CLAUDE_CODE_SESSION_ID` is now exposed to every subprocess** — moved from a narrow `USER_TYPE === 'ant'`-only injection in `Shell.ts` into `subprocessEnv()`, so Bash, hooks, MCP stdio, LSP, and shell-snapshot processes all see the same `session_id` the hooks payload already carries. Skipped when `getSessionId()` is still undefined during early startup so children never see the literal string `"undefined"` (`src/utils/subprocessEnv.ts`, `src/utils/Shell.ts`).
+- **`CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN=1` opts out of the fullscreen alt-screen renderer** — layered above `CLAUDE_CODE_NO_FLICKER` and the `tui` setting in `isFullscreenEnvEnabled()`, so it wins over both. Useful for users who want the conversation to stay in native terminal scrollback (copy/paste, scroll-up workflows) even when the renderer would otherwise pick fullscreen (`src/utils/fullscreen.ts`).
+- **Bedrock and Vertex no longer hit 400s when `ENABLE_PROMPT_CACHING_1H` is set** — `should1hCacheTTL()` now returns `false` early for any non–first-party provider, so the `cache_control: { ttl: '1h' }` beta extension is never sent to Bedrock/Vertex/Foundry/`ANTHROPIC_BASE_URL` gateways that don't yet accept it. Bedrock still has the dedicated `ENABLE_PROMPT_CACHING_1H_BEDROCK` opt-in. First-party users keep the GrowthBook-allowlisted 1h TTL (`src/services/api/claude.ts`).
+- **Pasting text starting with `/` no longer silently swallowed** — slash-command parsing in both `handlePromptSubmit` and `processUserInput.runProcessUserInput` now gates on the *typed* prompt (`input` / `preExpansionInput`) starting with `/`, not just the post-expansion `finalInput` / `inputString`. Previously, pasting `/usr/local/bin/foo` into an empty prompt expanded the placeholder into a string beginning with `/`, hit the slash-command lookup, and was either silently dropped or surfaced as "Unknown command" (`src/utils/handlePromptSubmit.ts`, `src/utils/processUserInput/processUserInput.ts`).
+- **MCP `tools/list` retries once before giving up** — `fetchToolsForClient` now wraps the first `tools/list` request in a try/catch and retries once with a 250 ms backoff. Some MCP servers establish the session quickly enough to look "connected" but fail their first `tools/list` (slow registry warm-up, racy initialisation). The one-shot retry rescues those without changing the outcome for persistent failures, which still throw to the outer catch and log "Failed to fetch tools" (`src/services/mcp/client.ts`).
+- **Bumped local source version to `2.1.132`** (from `2.1.129`) — `package.json` and `preload.ts` MACRO.
+
+### Pre-aligned (already correct in this mirror)
+
+- **`/effort` picker reflects `CLAUDE_CODE_EFFORT_LEVEL` env override** — `showCurrentEffort()` already consults `getEffortEnvOverride()` before falling back to AppState; nothing to change.
+
+### Not applied (upstream-only or out of scope)
+
+- "Pasting…" footer hint while a Ctrl+V image paste is being read — Ink prompt-footer rendering.
+- External SIGINT (IDE stop button, `kill -INT`) running graceful shutdown — handler already exists and calls `gracefulShutdown()` for non-print mode SIGINT; the specific race upstream fixed isn't identifiable without more context.
+- Uncaught exception on terminal close / SSH disconnect under the native build — native build crash recovery.
+- `--resume` "no low surrogate in string" emoji split sanitization — session JSONL parsing in obfuscated path.
+- `--permission-mode` ignored with `-p --continue/--resume` in plan mode — permission-mode wiring across the resume path.
+- Fullscreen blank screen after sleep/wake or Ctrl+Z/fg; cursor mid-grapheme on Ctrl+E/A/K/U/arrows; bold headers with keycap/ZWJ/skin-tone emoji truncation; long-URL wrapped-row click; mouse wheel speed in Cursor / VS Code 1.92–1.104; JetBrains 2025.2 scroll wheel; bracketed-paste interleaving with focus/mouse events; `/agents` Library arrow nav; slash-command autocomplete popup height; statusline `context_window` cumulative totals; `/usage Ctrl+S` Linux/X11 clipboard hang; `/terminal-setup` Windows Terminal contradiction; `/status` default-model display; slash-command dialog spacing; `/tui` startup banner copy; Alt+T thinking toggle on macOS terminals without "Option as Meta"; dead Windows keyboard input after re-opening a background session — Ink rendering / terminal-input / native-build / UI internals.
+- vim operators corrupting NFD-decomposed accented characters — grapheme-aware operator implementation in upstream vim engine.
+- Unbounded memory growth when an MCP stdio server writes non-protocol data to stdout — stdio transport buffer in upstream MCP SDK.
+- Unauthorised claude.ai connectors showing "failed" instead of "needs auth"; headless `-p` retrying non-transient 4xx connection failures — claude.ai-MCP connector state machine + headless retry policy.
+- Bedrock/Vertex `400 ENABLE_PROMPT_CACHING_1H` — applied above.
+- `2.1.131` VS Code extension Windows activation (hardcoded build path in bundled SDK) and Mantle endpoint `x-api-key` — neither code path exists in this mirror (no VS Code extension build, no Mantle integration).
+
+---
+
 ## 2.1.129 — May 6, 2026
 
 Applies the user-facing, tractable subset of upstream `2.1.129`.
