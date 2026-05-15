@@ -479,9 +479,22 @@ function getConnectionTimeoutMs(): number {
 }
 
 /**
- * Default timeout for individual MCP requests (auth, tool calls, etc.)
+ * Default timeout for individual MCP requests (auth, tool calls, etc.).
+ *
+ * Honors `MCP_TOOL_TIMEOUT` when explicitly set so the per-fetch abort
+ * window matches the per-tool-call window — otherwise a user who set
+ * `MCP_TOOL_TIMEOUT=300000` would still see HTTP/SSE fetches abort at
+ * 60s, capping their long-running tool calls below the configured value.
+ * Implicit defaults stay at 60s.
  */
-const MCP_REQUEST_TIMEOUT_MS = 60000
+function getMcpRequestTimeoutMs(): number {
+  const explicit = parseInt(process.env.MCP_TOOL_TIMEOUT || '', 10)
+  if (Number.isFinite(explicit) && explicit > 0) {
+    return Math.max(60_000, explicit)
+  }
+  return 60_000
+}
+const MCP_REQUEST_TIMEOUT_MS = getMcpRequestTimeoutMs()
 
 /**
  * MCP Streamable HTTP spec requires clients to advertise acceptance of both

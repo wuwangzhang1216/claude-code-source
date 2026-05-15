@@ -1613,10 +1613,26 @@ export async function createPluginFromPath(
     }
   }
 
-  // Step 4b: Register skills directory if detected
+  // Step 4b: Register skills directory if detected.
+  // Three layouts are accepted:
+  //   1. plugin/skills/<name>/SKILL.md       (standard multi-skill plugin)
+  //   2. plugin/skills/SKILL.md              (skills dir IS the skill)
+  //   3. plugin/SKILL.md                     (plugin root IS the skill —
+  //                                            surfaces single-skill plugins
+  //                                            that don't need a skills/
+  //                                            subdirectory)
+  // loadSkillsFromDirectory already handles cases (1) and (2) by checking
+  // for SKILL.md directly under skillsPath; case (3) only requires that we
+  // point skillsPath at pluginPath itself when no skills/ exists and the
+  // manifest doesn't declare a skills source.
   const skillsPath = join(pluginPath, 'skills')
   if (skillsDirExists) {
     plugin.skillsPath = skillsPath
+  } else if (!manifest.skills) {
+    const rootSkillExists = await pathExists(join(pluginPath, 'SKILL.md'))
+    if (rootSkillExists) {
+      plugin.skillsPath = pluginPath
+    }
   }
 
   // Step 4c: Process additional skill paths from manifest

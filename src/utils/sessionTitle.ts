@@ -76,12 +76,37 @@ const titleSchema = lazySchema(() => z.object({ title: z.string() }))
  * @param description - The user's first message or a description of the session
  * @param signal - Abort signal for cancellation
  */
+/**
+ * Heuristic: returns true when the trimmed description is essentially a
+ * bare URL (no other meaningful tokens around it). Haiku titles fed a
+ * bare URL produce useless URL-derived names ("Visit example.com / 123");
+ * the caller should defer titling until subsequent turns yield real
+ * conversation content.
+ */
+function isBareUrl(text: string): boolean {
+  // Strip surrounding < >, quotes, and trailing punctuation that often
+  // appears around pasted links.
+  const stripped = text.replace(/^[<"'`(\[{]+|[>"'`)\]}.,;:!?]+$/g, '').trim()
+  if (!/^https?:\/\//i.test(stripped) && !/^www\./i.test(stripped)) {
+    return false
+  }
+  // Reject if the stripped value still contains whitespace — implies the
+  // user wrote prose alongside the link, which is enough for a title.
+  return !/\s/.test(stripped)
+}
+
 export async function generateSessionTitle(
   description: string,
   signal: AbortSignal,
 ): Promise<string | null> {
   const trimmed = description.trim()
   if (!trimmed) return null
+  if (isBareUrl(trimmed)) {
+    logForDebugging(
+      'generateSessionTitle: skipping bare-URL first message — waiting for real conversation content',
+    )
+    return null
+  }
 
   try {
     const result = await queryHaiku({

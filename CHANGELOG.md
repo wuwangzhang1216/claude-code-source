@@ -2,6 +2,35 @@
 
 All notable changes tracked here. This is a local/educational source mirror of Claude Code, not an official release stream.
 
+## 2.1.142 — May 14, 2026
+
+Folds the user-facing, tractable subset of upstream `2.1.142`. Most of the upstream list is `claude agents` view extensions, daemon / background-session fixes, and Ink/UI rendering — none of which is reproduced in this mirror.
+
+### Applied in this local source tree
+
+- **Plugins with a root-level `SKILL.md` and no `skills/` subdirectory now surface as a skill** — `pluginLoader` now checks three layouts: `plugin/skills/<name>/SKILL.md` (multi-skill), `plugin/skills/SKILL.md` (skills dir IS the skill), and `plugin/SKILL.md` (plugin root IS the skill). When neither `manifest.skills` nor `plugin/skills/` is present, we point `plugin.skillsPath` at `pluginPath` itself so the existing `loadSkillsFromDirectory` direct-SKILL.md branch picks it up (`src/utils/plugins/pluginLoader.ts`).
+- **`MCP_TOOL_TIMEOUT` now raises the per-request fetch timeout for remote HTTP and SSE MCP servers** — `MCP_REQUEST_TIMEOUT_MS` was hardcoded to 60s, capping tool calls regardless of `MCP_TOOL_TIMEOUT`. Replaced the constant with `getMcpRequestTimeoutMs()` which reads `MCP_TOOL_TIMEOUT` (clamping at the 60s floor) so the underlying `fetch()` abort window matches the per-call window. Implicit defaults stay at 60s (`src/services/mcp/client.ts`).
+- **Session title is no longer derived from a bare URL when the first message is just a link** — added an `isBareUrl()` heuristic in `generateSessionTitle`; bare-URL inputs return `null` so titling defers until subsequent turns produce real conversation content rather than emitting a useless "Visit example.com / 123" type title (`src/utils/sessionTitle.ts`).
+- **Hook config error: prompt/agent-type hooks for `SessionStart`/`Setup`/`SubagentStart` now show "use a command-type hook instead"** — these events fire before the LLM/tool context is set up, so prompt or agent hooks can't run there. The hook dispatcher now yields a clear `hook_error_during_execution` attachment with that exact guidance instead of falling through to the cryptic "ToolUseContext is required for prompt hooks. This is a bug." error (`src/utils/hooks.ts`).
+- **Removed the stale `/model claude-sonnet-4-20250514` suggestion from Usage Policy refusal messages** — that model id is now multiple Sonnet revisions out of date and isn't reliably available on 3P providers. Recommending it as a "switch to this to avoid the refusal" was misleading. The refusal text now just shows the policy link + request id (`src/services/api/errors.ts`).
+- **Bumped local source version to `2.1.142`** (from `2.1.141`) — `package.json` and `preload.ts` MACRO.
+
+### Not applied (upstream-only or out of scope)
+
+- **`claude agents` new flags (`--add-dir`, `--settings`, `--mcp-config`, `--plugin-dir`, `--permission-mode`, `--model`, `--effort`, `--dangerously-skip-permissions`)** — `claude agents` view is not reproduced here.
+- **Fast mode uses Opus 4.7 by default + `CLAUDE_CODE_OPUS_4_6_FAST_MODE_OVERRIDE=1`** — the mirror's `ALL_MODEL_CONFIGS` doesn't include Opus 4.7, so the default is already (and only) Opus 4.6 and the override env var is moot.
+- **`/plugin details` and `claude plugin details` show LSP servers a plugin provides** — Ink rendering pass for the details pane.
+- **`/web-setup` warns before replacing GitHub App connection** — `/web-setup` flow not in mirror.
+- **Background sessions / daemon / `claude --bg` fixes** — pre-existing worktree recognition, macOS sleep/wake clock-jump detection, daemon clean exit on binary upgrade, Claude-in-Chrome shared-tab crash-loop, attached-session link clicks, "v to open in editor" picking $EDITOR, Windows network-drive deadlock, 256-color-only attach color bleed, `--dangerously-skip-permissions` retire/wake persistence — none reproduced.
+- **Redundant `set_model` from remote clients injecting duplicate `/model` breadcrumbs** — Remote Control / bridge ingress dedupe path; defer.
+- **Plugins using `skills: ["./"]` showing a false "path escapes plugin directory" error** — the path-escape validator that surfaced this isn't wired into the skills branch in this mirror.
+- **Plugin cache cleanup deleting active version without installation metadata** — the cleanup path in this mirror already cross-references `installed_plugins`; not reproducible.
+- **`/plugin browse` "0 installs" for newly published plugins** — Ink rendering only.
+- **Plugin advisories enumerating every shadowing `plugin.json` key** — the 2.1.140 self-correction already enumerates all four component types (`commands`, `agents`, `skills`, `output-styles`); upstream is catching up.
+- **Reactive compaction seeded from original-request overflow size** — touches the obfuscated `compact.ts` reactive path; defer.
+
+---
+
 ## 2.1.141 — May 13, 2026
 
 Folds the user-facing, tractable subset of upstream `2.1.141`. The bulk of upstream's 60-item list is Ink/UI rendering (cursor, scroll, ProgressBar, markdown tables, multi-line statusline, banners, popups), VSCode-specific work, Windows-only fixes, and host-process features (`/goal`, `claude agents`, `claude --bg`, Rewind menu, Remote Control) that aren't reproduced here.

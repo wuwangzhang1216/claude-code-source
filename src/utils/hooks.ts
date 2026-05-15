@@ -2249,6 +2249,31 @@ async function* executeHooks({
       return
     }
 
+    // Surface a clear error when an author configured a prompt- or agent-
+    // type hook for an event that doesn't have a working LLM/tool context
+    // yet (SessionStart, Setup, SubagentStart fire before agent setup is
+    // complete). Without this, the hook would silently fail or surface
+    // a cryptic "ToolUseContext is required" message.
+    if (
+      (hook.type === 'prompt' || hook.type === 'agent') &&
+      (hookEvent === 'SessionStart' ||
+        hookEvent === 'Setup' ||
+        hookEvent === 'SubagentStart')
+    ) {
+      yield {
+        message: createAttachmentMessage({
+          type: 'hook_error_during_execution',
+          hookName,
+          toolUseID,
+          hookEvent,
+          content: `Hook event "${hookEvent}" does not support ${hook.type}-type hooks (no agent context is available yet at this stage). Use a command-type hook instead.`,
+        }),
+        outcome: 'non_blocking_error',
+        hook,
+      }
+      return
+    }
+
     // Command and prompt hooks need jsonInput
     const commandTimeoutMs = hook.timeout ? hook.timeout * 1000 : timeoutMs
     const { signal: abortSignal, cleanup } = createCombinedAbortSignal(signal, {
