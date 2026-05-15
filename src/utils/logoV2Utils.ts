@@ -5,6 +5,7 @@ import { getSubscriptionName, isClaudeAISubscriber } from './auth.js'
 import { getCwd } from './cwd.js'
 import { isEnvTruthy } from './envUtils.js'
 import { getDisplayPath } from './file.js'
+import { getAPIProvider } from './model/providers.js'
 import {
   truncate,
   truncateToWidth,
@@ -263,9 +264,21 @@ export function getLogoDisplayData(): {
       ? serverUrl.replace(/^https?:\/\//, '')
       : `${displayPath} in ${serverUrl.replace(/^https?:\/\//, '')}`
     : displayPath
+  // For 3P providers (Bedrock / Vertex / Foundry), show the provider name
+  // rather than the 1P "API Usage Billing" label — the billing relationship
+  // is with AWS / Google / Foundry, not Anthropic.
+  const provider = getAPIProvider()
+  const providerLabel =
+    provider === 'bedrock'
+      ? 'Amazon Bedrock'
+      : provider === 'vertex'
+        ? 'Google Vertex AI'
+        : provider === 'foundry'
+          ? 'Azure AI Foundry'
+          : null
   const billingType = isClaudeAISubscriber()
     ? getSubscriptionName()
-    : 'API Usage Billing'
+    : (providerLabel ?? 'API Usage Billing')
   const agentName = getInitialSettings().agent
 
   return {

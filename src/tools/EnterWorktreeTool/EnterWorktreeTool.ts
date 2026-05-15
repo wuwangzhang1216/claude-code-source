@@ -1,5 +1,10 @@
 import { z } from 'zod/v4'
-import { getSessionId, setOriginalCwd } from '../../bootstrap/state.js'
+import {
+  getSessionId,
+  getSessionProjectDir,
+  setOriginalCwd,
+  switchSession,
+} from '../../bootstrap/state.js'
 import { clearSystemPromptSections } from '../../constants/systemPromptSections.js'
 import { logEvent } from '../../services/analytics/index.js'
 import type { Tool } from '../../Tool.js'
@@ -10,7 +15,7 @@ import { findCanonicalGitRoot } from '../../utils/git.js'
 import { lazySchema } from '../../utils/lazySchema.js'
 import { getPlanSlug, getPlansDirectory } from '../../utils/plans.js'
 import { setCwd } from '../../utils/Shell.js'
-import { saveWorktreeState } from '../../utils/sessionStorage.js'
+import { getProjectDir, saveWorktreeState } from '../../utils/sessionStorage.js'
 import {
   createWorktreeForSession,
   getCurrentWorktreeSession,
@@ -80,6 +85,14 @@ export const EnterWorktreeTool: Tool<InputSchema, Output> = buildTool({
       throw new Error('Already in a worktree session')
     }
 
+    // Capture the project dir that hosts this session's transcript BEFORE
+    // we change originalCwd. setOriginalCwd(worktreePath) below would
+    // otherwise cause getTranscriptPathForSession() to derive the path
+    // from the worktree, which doesn't host the .jsonl — hooks would then
+    // receive a non-existent transcript_path.
+    const transcriptProjectDir =
+      getSessionProjectDir() ?? getProjectDir(getCwd())
+
     // Resolve to main repo root so worktree creation works from within a worktree
     const mainRepoRoot = findCanonicalGitRoot(getCwd())
     if (mainRepoRoot && mainRepoRoot !== getCwd()) {
@@ -94,6 +107,10 @@ export const EnterWorktreeTool: Tool<InputSchema, Output> = buildTool({
     process.chdir(worktreeSession.worktreePath)
     setCwd(worktreeSession.worktreePath)
     setOriginalCwd(getCwd())
+    // Pin the session's transcript directory to where the .jsonl was
+    // actually written, so subsequent hook payloads (and resume/recovery)
+    // resolve transcript_path correctly even after the cwd switch.
+    switchSession(getSessionId(), transcriptProjectDir)
     saveWorktreeState(worktreeSession)
     // Clear cached system prompt sections so env_info_simple recomputes with worktree context
     clearSystemPromptSections()

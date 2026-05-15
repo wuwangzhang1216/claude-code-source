@@ -727,55 +727,48 @@ async function getAwsCredsFromCredentialExport(): Promise<{
     }
   }
 
+  // Always run the configured awsCredentialExport. Skipping it when
+  // ambient AWS credentials happen to resolve breaks cross-account setups
+  // where the export is the mechanism that *switches* into the right
+  // account (e.g. `aws sts assume-role` for a Bedrock-hosting account
+  // different from the user's default profile).
   try {
-    logForDebugging(
-      'Fetching AWS caller identity for credential export command',
-    )
-    await checkStsCallerIdentity()
-    logForDebugging(
-      'Fetched AWS caller identity, skipping AWS credential export command',
-    )
-    return null
-  } catch {
-    // only actually do the export if caller-identity calls
-    try {
-      logForDebugging('Running AWS credential export command')
-      const result = await execa(awsCredentialExport, {
-        shell: true,
-        reject: false,
-      })
-      if (result.exitCode !== 0 || !result.stdout) {
-        throw new Error('awsCredentialExport did not return a valid value')
-      }
-
-      // Parse the JSON output from aws sts commands
-      const awsOutput = jsonParse(result.stdout.trim())
-
-      if (!isValidAwsStsOutput(awsOutput)) {
-        throw new Error(
-          'awsCredentialExport did not return valid AWS STS output structure',
-        )
-      }
-
-      logForDebugging('AWS credentials retrieved from awsCredentialExport')
-      return {
-        accessKeyId: awsOutput.Credentials.AccessKeyId,
-        secretAccessKey: awsOutput.Credentials.SecretAccessKey,
-        sessionToken: awsOutput.Credentials.SessionToken,
-      }
-    } catch (e) {
-      const message = chalk.red(
-        'Error getting AWS credentials from awsCredentialExport (in settings or ~/.claude.json):',
-      )
-      if (e instanceof Error) {
-        // biome-ignore lint/suspicious/noConsole:: intentional console output
-        console.error(message, e.message)
-      } else {
-        // biome-ignore lint/suspicious/noConsole:: intentional console output
-        console.error(message, e)
-      }
-      return null
+    logForDebugging('Running AWS credential export command')
+    const result = await execa(awsCredentialExport, {
+      shell: true,
+      reject: false,
+    })
+    if (result.exitCode !== 0 || !result.stdout) {
+      throw new Error('awsCredentialExport did not return a valid value')
     }
+
+    // Parse the JSON output from aws sts commands
+    const awsOutput = jsonParse(result.stdout.trim())
+
+    if (!isValidAwsStsOutput(awsOutput)) {
+      throw new Error(
+        'awsCredentialExport did not return valid AWS STS output structure',
+      )
+    }
+
+    logForDebugging('AWS credentials retrieved from awsCredentialExport')
+    return {
+      accessKeyId: awsOutput.Credentials.AccessKeyId,
+      secretAccessKey: awsOutput.Credentials.SecretAccessKey,
+      sessionToken: awsOutput.Credentials.SessionToken,
+    }
+  } catch (e) {
+    const message = chalk.red(
+      'Error getting AWS credentials from awsCredentialExport (in settings or ~/.claude.json):',
+    )
+    if (e instanceof Error) {
+      // biome-ignore lint/suspicious/noConsole:: intentional console output
+      console.error(message, e.message)
+    } else {
+      // biome-ignore lint/suspicious/noConsole:: intentional console output
+      console.error(message, e)
+    }
+    return null
   }
 }
 

@@ -925,6 +925,11 @@ export const SyncHookJSONOutputSchema = lazySchema(() =>
     decision: z.enum(['approve', 'block']).optional(),
     systemMessage: z.string().optional(),
     reason: z.string().optional(),
+    // Raw terminal control sequence to write to the host TTY before the
+    // hook result is processed. Useful for desktop notifications (OSC 9),
+    // window titles (OSC 0/1/2), and bells (BEL) when the hook itself
+    // doesn't have a controlling terminal.
+    terminalSequence: z.string().optional(),
     hookSpecificOutput: z
       .union([
         PreToolUseHookSpecificOutputSchema(),

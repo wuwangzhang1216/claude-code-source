@@ -1132,13 +1132,23 @@ export const connectToServer = memoize(
           )
           logMCPError(name, error)
 
-          if (error instanceof UnauthorizedError) {
+          // 401 surfaces as UnauthorizedError from the SDK; 403 (forbidden
+          // by an upstream policy that still expects auth, e.g. step-up
+          // required) only carries `error.code === 403` and would otherwise
+          // fall through to "failed". Treat both as needs-auth so the
+          // /mcp picker offers re-authentication instead of a dead state.
+          const sseErrorCode = (error as Error & { code?: number }).code
+          if (
+            error instanceof UnauthorizedError ||
+            sseErrorCode === 401 ||
+            sseErrorCode === 403
+          ) {
             return handleRemoteAuthFailure(name, serverRef, 'sse')
           }
         } else if (serverRef.type === 'http' && error instanceof Error) {
           const errorObj = error as Error & {
             cause?: unknown
-            code?: string
+            code?: string | number
             errno?: string | number
             syscall?: string
           }
@@ -1148,7 +1158,14 @@ export const connectToServer = memoize(
           )
           logMCPError(name, error)
 
-          if (error instanceof UnauthorizedError) {
+          // Same 401-or-403-or-UnauthorizedError mapping as the SSE branch.
+          const httpErrorCode =
+            typeof errorObj.code === 'number' ? errorObj.code : undefined
+          if (
+            error instanceof UnauthorizedError ||
+            httpErrorCode === 401 ||
+            httpErrorCode === 403
+          ) {
             return handleRemoteAuthFailure(name, serverRef, 'http')
           }
         } else if (

@@ -334,7 +334,7 @@ function generateWordDiffElements(item: DiffLine, width: number, maxWidth: numbe
     const padding = Math.max(0, width - usedWidth);
     return <Box key={key} flexDirection="row">
         <NoSelect fromLeftEdge>
-          <Text color={overrideTheme ? 'text' : undefined} backgroundColor={lineBgColor} dimColor={dim}>
+          <Text color="text" backgroundColor={lineBgColor} dimColor={dim}>
             {lineNumStr}
             {diffPrefix}
           </Text>
@@ -407,12 +407,12 @@ function formatDiff(lines: string[], startingLineNumber: number, width: number, 
       // so the visual continuity (solid red/green bar) is unchanged.
       return <Box key={key} flexDirection="row">
           <NoSelect fromLeftEdge>
-            <Text color={overrideTheme ? 'text' : undefined} backgroundColor={bgColor} dimColor={dim || type === 'nochange'}>
+            <Text color="text" backgroundColor={bgColor} dimColor={dim || type === 'nochange'}>
               {lineNumStr}
               {sigil}
             </Text>
           </NoSelect>
-          <Text color={overrideTheme ? 'text' : undefined} backgroundColor={bgColor} dimColor={dim}>
+          <Text color="text" backgroundColor={bgColor} dimColor={dim}>
             {line}
             {' '.repeat(padding)}
           </Text>

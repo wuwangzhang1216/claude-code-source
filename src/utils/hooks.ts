@@ -569,6 +569,22 @@ function processHookJSONOutput({
     result.systemMessage = json.systemMessage
   }
 
+  // Hook-emitted terminal sequence: write directly to the host TTY so the
+  // user sees OSC 9 desktop notifications, OSC 0/1/2 window-title updates,
+  // bells, etc. without the hook needing a controlling terminal of its own.
+  // Guarded by isTTY so we don't spray escape codes into piped output.
+  if (
+    typeof json.terminalSequence === 'string' &&
+    json.terminalSequence.length > 0 &&
+    process.stderr.isTTY
+  ) {
+    try {
+      process.stderr.write(json.terminalSequence)
+    } catch {
+      // Ignore EPIPE / closed stream — the sequence is fire-and-forget.
+    }
+  }
+
   // Handle PreToolUse specific
   if (
     json.hookSpecificOutput?.hookEventName === 'PreToolUse' &&

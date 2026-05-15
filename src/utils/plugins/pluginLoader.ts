@@ -670,8 +670,12 @@ async function installFromGitHub(
       `Invalid GitHub repository format: ${repo}. Expected format: owner/repo`,
     )
   }
-  // Use HTTPS for CCR (no SSH keys), SSH for normal CLI
-  const gitUrl = isEnvTruthy(process.env.CLAUDE_CODE_REMOTE)
+  // Use HTTPS for CCR (no SSH keys) or when CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1
+  // (for environments without a GitHub SSH key); SSH for normal CLI otherwise.
+  const preferHttps =
+    isEnvTruthy(process.env.CLAUDE_CODE_REMOTE) ||
+    isEnvTruthy(process.env.CLAUDE_CODE_PLUGIN_PREFER_HTTPS)
+  const gitUrl = preferHttps
     ? `https://github.com/${repo}.git`
     : `git@github.com:${repo}.git`
   return installFromGit(gitUrl, targetPath, ref, sha)
@@ -685,7 +689,10 @@ async function installFromGitHub(
  */
 function resolveGitSubdirUrl(url: string): string {
   if (/^[a-zA-Z0-9-_.]+\/[a-zA-Z0-9-_.]+$/.test(url)) {
-    return isEnvTruthy(process.env.CLAUDE_CODE_REMOTE)
+    const preferHttps =
+      isEnvTruthy(process.env.CLAUDE_CODE_REMOTE) ||
+      isEnvTruthy(process.env.CLAUDE_CODE_PLUGIN_PREFER_HTTPS)
+    return preferHttps
       ? `https://github.com/${url}.git`
       : `git@github.com:${url}.git`
   }

@@ -1484,8 +1484,15 @@ async function loadAndCacheMarketplace(
 
         let lastError: Error | null = null
 
-        // Quick check if SSH is likely to work
-        const sshConfigured = await isGitHubSshLikelyConfigured()
+        // Quick check if SSH is likely to work — unless the operator has
+        // explicitly opted into HTTPS via CLAUDE_CODE_PLUGIN_PREFER_HTTPS (e.g.
+        // CI / sandboxes / corporate networks without a GitHub SSH key), in
+        // which case we skip the SSH attempt entirely.
+        const preferHttps = isEnvTruthy(
+          process.env.CLAUDE_CODE_PLUGIN_PREFER_HTTPS,
+        )
+        const sshConfigured =
+          !preferHttps && (await isGitHubSshLikelyConfigured())
 
         if (sshConfigured) {
           // SSH looks good, try it first
@@ -2484,8 +2491,11 @@ export async function refreshMarketplace(
         const sshUrl = `git@github.com:${source.repo}.git`
         const httpsUrl = `https://github.com/${source.repo}.git`
 
-        if (isEnvTruthy(process.env.CLAUDE_CODE_REMOTE)) {
-          // CCR: always HTTPS (no SSH keys available)
+        const forceHttps =
+          isEnvTruthy(process.env.CLAUDE_CODE_REMOTE) ||
+          isEnvTruthy(process.env.CLAUDE_CODE_PLUGIN_PREFER_HTTPS)
+        if (forceHttps) {
+          // CCR or operator opted in: always HTTPS (no SSH keys available)
           await cacheMarketplaceFromGit(
             httpsUrl,
             installLocation,

@@ -23,7 +23,7 @@ import { getModelStrings, resolveOverriddenModel } from './modelStrings.js'
 import { formatModelPricing, getOpus46CostTier } from '../modelCost.js'
 import { getSettings_DEPRECATED } from '../settings/settings.js'
 import type { PermissionMode } from '../permissions/PermissionMode.js'
-import { getAPIProvider } from './providers.js'
+import { getAPIProvider, isFirstPartyAnthropicBaseUrl } from './providers.js'
 import { LIGHTNING_BOLT } from '../../constants/figures.js'
 import { isModelAllowed } from './modelAllowlist.js'
 import { type ModelAlias, isModelAlias, isGPTAlias } from './aliases.js'
@@ -34,7 +34,23 @@ export type ModelName = string
 export type ModelSetting = ModelName | ModelAlias | null
 
 export function getSmallFastModel(): ModelName {
-  return process.env.ANTHROPIC_SMALL_FAST_MODEL || getDefaultHaikuModel()
+  if (process.env.ANTHROPIC_SMALL_FAST_MODEL) {
+    return process.env.ANTHROPIC_SMALL_FAST_MODEL
+  }
+  // On 3P providers (Bedrock / Vertex / Foundry) or a custom ANTHROPIC_BASE_URL
+  // gateway, the canonical default Haiku model id is not guaranteed to exist.
+  // Side-queries (WebSearch advisor, session-title namer, awaySummary, etc.)
+  // would otherwise 4xx with "model not found". Fall back to the default
+  // main-loop model so the side-query at least runs on a model we know the
+  // provider serves; users who want a cheaper model can still override
+  // explicitly via ANTHROPIC_SMALL_FAST_MODEL.
+  if (
+    getAPIProvider() !== 'firstParty' ||
+    !isFirstPartyAnthropicBaseUrl()
+  ) {
+    return getDefaultMainLoopModel()
+  }
+  return getDefaultHaikuModel()
 }
 
 export function isNonCustomOpusModel(model: ModelName): boolean {

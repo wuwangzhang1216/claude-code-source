@@ -2,6 +2,40 @@
 
 All notable changes tracked here. This is a local/educational source mirror of Claude Code, not an official release stream.
 
+## 2.1.141 — May 13, 2026
+
+Folds the user-facing, tractable subset of upstream `2.1.141`. The bulk of upstream's 60-item list is Ink/UI rendering (cursor, scroll, ProgressBar, markdown tables, multi-line statusline, banners, popups), VSCode-specific work, Windows-only fixes, and host-process features (`/goal`, `claude agents`, `claude --bg`, Rewind menu, Remote Control) that aren't reproduced here.
+
+### Applied in this local source tree
+
+- **`terminalSequence` field on hook JSON output** — hooks can now return a raw terminal control sequence (OSC 9 desktop notifications, OSC 0/1/2 window titles, BEL bells, etc.) that the harness writes straight to the host TTY. Guarded on `process.stderr.isTTY` so piped output isn't corrupted. Added to both `syncHookResponseSchema` and the SDK `SyncHookJSONOutputSchema` so the type-equality assertion still holds (`src/types/hooks.ts`, `src/entrypoints/sdk/coreSchemas.ts`, `src/utils/hooks.ts`).
+- **`CLAUDE_CODE_PLUGIN_PREFER_HTTPS=1` clones GitHub plugin/marketplace sources over HTTPS** — for CI / sandboxes / corporate networks without a GitHub SSH key. Threaded through `installFromGitHub`, `resolveGitSubdirUrl`, and both marketplace clone sites so the SSH attempt is skipped entirely instead of being tried-and-fallen-back. The existing `CLAUDE_CODE_REMOTE` HTTPS forcing for CCR stays unchanged (`src/utils/plugins/pluginLoader.ts`, `src/utils/plugins/marketplaceManager.ts`).
+- **Side-query Haiku falls back to the main-loop model on 3P providers and custom gateways** — `getSmallFastModel()` returns `getDefaultMainLoopModel()` instead of a likely-unavailable Haiku id when `getAPIProvider() !== 'firstParty'` or `ANTHROPIC_BASE_URL` points elsewhere, unless the user has explicitly set `ANTHROPIC_SMALL_FAST_MODEL`. Fixes both the "background side-query 400" path and the "background-job auto-namer never runs on a custom gateway" path in one place since every side-query in this mirror funnels through `getSmallFastModel` (`src/utils/model/model.ts`).
+- **Hooks receive a valid `transcript_path` after `EnterWorktree` switches cwd** — `EnterWorktreeTool.call` now captures `getSessionProjectDir() ?? getProjectDir(getCwd())` BEFORE `setOriginalCwd(worktreePath)` runs, then pins the session via `switchSession(getSessionId(), transcriptProjectDir)` so subsequent `getTranscriptPathForSession()` resolves to the directory that actually hosts the `.jsonl`. Previously hooks fired with a non-existent path under the worktree (`src/tools/EnterWorktreeTool/EnterWorktreeTool.ts`).
+- **`light-ansi` theme: diff context lines now use theme `text` color instead of terminal default** — on a light terminal background the terminal's default foreground was effectively invisible. All three `<Text>` sites in `StructuredDiff/Fallback.tsx` (gutter + content for normal lines, gutter + content for `nochange` lines) now pin `color="text"` unconditionally. Other themes already had `text` mapped to a sensible foreground, so no visible change elsewhere (`src/components/StructuredDiff/Fallback.tsx`).
+- **Welcome banner shows provider name on Bedrock / Vertex / Foundry instead of "API Usage Billing"** — `getLogoV2Info` reads `getAPIProvider()` and maps `bedrock` → "Amazon Bedrock", `vertex` → "Google Vertex AI", `foundry` → "Azure AI Foundry". 1P PAYG still shows "API Usage Billing"; Claude.ai subscribers still show their subscription name (`src/utils/logoV2Utils.ts`).
+- **MCP HTTP / SSE connect returning 403 now classifies as `needs-auth` instead of `failed`** — `UnauthorizedError` only covers 401; servers that respond 403 (step-up required, scope insufficient) would fall through to the dead "failed" state. Both `sse` and `http` connect branches now treat `error.code === 401 || error.code === 403 || error instanceof UnauthorizedError` as needs-auth so the `/mcp` picker offers re-authentication (`src/services/mcp/client.ts`).
+- **Bedrock `awsCredentialExport` always runs when configured** — the previous logic called `checkStsCallerIdentity()` first and short-circuited to "skip export" if ambient AWS creds resolved, which broke cross-account setups where the export is the mechanism that switches into the right account (e.g. `aws sts assume-role` for a Bedrock-hosting account different from the user's default profile). Now the export runs unconditionally when configured; success/failure of the export itself remains the gate (`src/utils/auth.ts`).
+- **MCP server configs using POSIX shell parameter expansions are no longer flagged as missing env vars** — `expandEnvVarsInString` now recognizes only the two shapes we own (`${NAME}`, `${NAME:-default}`) and leaves anything else (`${var%pattern}`, `${var##prefix}`, `${var/a/b}`, `${var^^}`, etc.) intact for the spawning shell to expand. Previously the whole token after `${` (including the POSIX operator) was treated as a variable name and reported as missing, blocking otherwise-valid configs (`src/services/mcp/envExpansion.ts`).
+- **Bumped local source version to `2.1.141`** (from `2.1.140`) — `package.json` and `preload.ts` MACRO.
+
+### Not applied (upstream-only or out of scope)
+
+- **`ANTHROPIC_WORKSPACE_ID` for workload identity federation** — no federation token-minting code in this mirror to scope.
+- **`claude agents --cwd`, `claude agents` dashboard/wrapper/crashed-session/empty-placeholder/idle-retire fixes, agent-color palette refresh** — the `claude agents` view is not reproduced here.
+- **`/goal` hang fix** — `/goal` command not in this mirror.
+- **`/feedback` recent-sessions inclusion and redaction-quoted-values JSON fix** — feedback bundle path is largely obfuscated.
+- **Rewind menu "Summarize up to here"** — Rewind UI not reproduced.
+- **Auto-mode permission dialog explanation, "view diff in IDE" option, perm-mode mid-prompt auto-dismiss, Enter-submits-during-permission-prompt, "Allowed by PermissionRequest hook" collapsing, agent panel `x`-to-stop, Enter-on-rating-digit** — Ink permission/dialog rendering and key routing.
+- **Spinner amber, plugin menu Tab/arrow navigation, markdown-table wrapping, multi-line statusline, error-overlay minified bundle, AskUserQuestion popup last line, `/mcp` focused-server visibility, welcome-banner first-prompt session title, light-ansi white diff text** — Ink/renderer.
+- **Background agents via `/bg` / `←←` permission mode, `/tui` dropping background shells, finished-with-background-shell to Completed, claude agents empty placeholders, idle background retirement** — background-agent runtime not reproduced.
+- **`claude --bg` connection drop, enterprise-startup timeout, `claude daemon status` Windows pipe file lock** — background-service mode not in this CLI mirror.
+- **Cancelled prompts Up-arrow history dropped/duplicated, Ctrl+C in vim INSERT/VISUAL, alternative chat:submit when enter rebound to chat:newline, voice:pushToTalk + `"space": null` unbinds, Windows Alt+V image paste, SDK Linux binary not found, `/mcp` Reconnect changes** — Ink keyhandler / OS-specific / SDK packaging.
+- **Prompt suggestions disabled with output style, spinnerVerbs in turn-completion, Web Search "Did 0 searches" wording, `/model` autocompact-threshold cross-session leak, apiKeyHelper inherited by desktop/3P, early-OTel spans dropped before logger init, plugin install marketplace-deleted-with-sha, plugin details 0 MCP servers, plugin MCP "config issue" vs generic failure, malformed `.mcp.json` dropping siblings, remote MCP server-events disconnect, Remote Control 401/re-enroll** — mostly tractable but each touches a different obfuscated subsystem; defer to a future targeted pass.
+- **[VSCode] in-chat mic / WSL voice mode** — VSCode extension only.
+
+---
+
 ## 2.1.140 — May 12, 2026
 
 Folds the user-facing, tractable subset of upstream `2.1.140`. Pulls one self-correction onto my 2.1.139 symlink-watch change (upstream reported a regression there) plus a handful of small fixes; the rest is host-process / `/goal` / Windows-specific.
